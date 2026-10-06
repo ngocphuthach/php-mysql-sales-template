@@ -143,10 +143,16 @@ if (isset($_POST['add_images'])) {
             $stmtImageState = $conn->prepare($sqlImageState);
             $stmtImageState->bind_param('i', $productID);
             $stmtImageState->execute();
-
             $imageState = $stmtImageState->get_result()->fetch_assoc();
-
             $stmtImageState->close();
+	    // Đọc tên sản phẩm sớm ở đây để làm AltText
+            $sqlProdName = "SELECT ProductName FROM products WHERE ProductID = ?";
+            $stmtProdName = $conn->prepare($sqlProdName);
+            $stmtProdName->bind_param('i', $productID);
+            $stmtProdName->execute();
+            $currentProd = $stmtProdName->get_result()->fetch_assoc();
+            $stmtProdName->close();
+            $productNameForAlt = $currentProd['ProductName'] ?? 'Sản phẩm';
 
             $imageCount = (int) $imageState['ImageCount'];
             $nextSortOrder = (int) $imageState['MaxSortOrder'] + 1;
@@ -198,7 +204,7 @@ if (isset($_POST['add_images'])) {
 
                     // Lưu ý: Đoạn mã sử dụng đúng tên biến $product kế thừa từ block đọc dữ liệu của HO05 cũ
                     $altText =
-                        $product['ProductName']
+                        $productNameForAlt
                         . (
                             $isPrimary === 1
                             ? ' - ảnh chính'
