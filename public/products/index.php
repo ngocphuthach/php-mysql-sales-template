@@ -126,7 +126,7 @@ require_once '/var/www/src/includes/navbar.php';
                     </td>
 
                     <td>
-                        <a href="#" class="btn btn-sm btn-warning">
+                        <a href="/products/edit.php?id=<?= $product['ProductID'] ?>" class="btn btn-sm btn-warning">
                             Sửa
                         </a>
 
