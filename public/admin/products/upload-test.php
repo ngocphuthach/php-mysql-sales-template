@@ -1,7 +1,7 @@
 <?php
 $pageTitle = 'Kiểm tra Nhiều Ảnh';
-require_once '/var/www/src/includes/header.php';
-require_once '/var/www/src/includes/navbar.php';
+require_once '/var/www/src/includes/admin/header.php';
+require_once '/var/www/src/includes/admin/navbar.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     echo '<div class="container mt-4">';
@@ -9,9 +9,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     echo '<pre>';
     print_r($_FILES['product_images'] ?? []);
     echo '</pre>';
-    echo '<a href="/products/upload-test.php" class="btn btn-secondary mt-3">Quay lại thử tiếp</a>';
+    echo '<a href="/admin/products/upload-test.php" class="btn btn-secondary mt-3">Quay lại thử tiếp</a>';
     echo '</div>';
-    require_once '/var/www/src/includes/footer.php';
+    require_once '/var/www/src/includes/admin/footer.php';
     exit; // Dừng hệ thống ở đây để quan sát mảng giống hệt yêu cầu đề bài
 }
 ?>
@@ -41,5 +41,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <?php
-require_once '/var/www/src/includes/footer.php';
+require_once '/var/www/src/includes/admin/footer.php';
 ?>

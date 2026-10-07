@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $stmt->close();
             $conn->close();
-            header('Location: /products/');
+            header('Location: /admin/products/');
             exit;
         }
 
@@ -98,8 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-require_once '/var/www/src/includes/header.php';
-require_once '/var/www/src/includes/navbar.php';
+require_once '/var/www/src/includes/admin/header.php';
+require_once '/var/www/src/includes/admin/navbar.php';
 ?>
 
 <div class="container mt-4">
@@ -173,11 +173,11 @@ require_once '/var/www/src/includes/navbar.php';
         </div>
 
         <button type="submit" class="btn btn-primary">Lưu sản phẩm</button>
-        <a href="/products/" class="btn btn-secondary">Hủy</a>
+        <a href="/admin/products/" class="btn btn-secondary">Hủy</a>
     </form>
 </div>
 
 <?php
-require_once '/var/www/src/includes/footer.php';
+require_once '/var/www/src/includes/admin/footer.php';
 $conn->close();
 ?>
