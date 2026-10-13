@@ -20,14 +20,13 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $shipperName = trim($_POST['shipper_name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
-    $isActive = isset($_POST['is_active']) ? 1 : 0;
 
     if ($shipperName === '') {
         $error = 'Tên nhà vận chuyển không được để trống.';
     } else {
         $sql = "
-            INSERT INTO shippers (ShipperName, Phone, IsActive)
-            VALUES (?, ?, ?)
+            INSERT INTO shippers (ShipperName, Phone)
+            VALUES (?, ?)
         ";
 
         $stmt = $conn->prepare($sql);
@@ -35,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt === false) {
             $error = 'Không thể chuẩn bị truy vấn thêm nhà vận chuyển.';
         } else {
-            $stmt->bind_param('ssi', $shipperName, $phone, $isActive);
+            $stmt->bind_param('ss', $shipperName, $phone);
 
             if ($stmt->execute()) {
                 $stmt->close();
@@ -86,20 +85,6 @@ require_once '/var/www/src/includes/admin/navbar.php';
                 value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>"
                 placeholder="Ví dụ: 0909 123 456"
             >
-        </div>
-
-        <div class="form-check mb-3">
-            <input
-                type="checkbox"
-                class="form-check-input"
-                id="isActive"
-                name="is_active"
-                value="1"
-                <?= isset($_POST['is_active']) || $_SERVER['REQUEST_METHOD'] !== 'POST' ? 'checked' : '' ?>
-            >
-            <label class="form-check-label" for="isActive">
-                Đang hoạt động
-            </label>
         </div>
 
         <button type="submit" class="btn btn-primary">

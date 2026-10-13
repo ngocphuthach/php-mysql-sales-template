@@ -17,7 +17,6 @@ $conn->query("
 
 $error = '';
 $shipperID = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-$formIsActive = 1;
 
 if ($shipperID <= 0) {
     die('Mã nhà vận chuyển không hợp lệ.');
@@ -27,8 +26,7 @@ $sql = "
     SELECT
         ShipperID,
         ShipperName,
-        Phone,
-        IsActive
+        Phone
     FROM shippers
     WHERE ShipperID = ?
 ";
@@ -47,8 +45,6 @@ if (!$shipper) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $shipperName = trim($_POST['shipper_name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
-    $isActive = isset($_POST['is_active']) ? 1 : 0;
-    $formIsActive = $isActive;
 
     if ($shipperName === '') {
         $error = 'Tên nhà vận chuyển không được để trống.';
@@ -57,8 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             UPDATE shippers
             SET
                 ShipperName = ?,
-                Phone = ?,
-                IsActive = ?
+                Phone = ?
             WHERE ShipperID = ?
         ";
 
@@ -67,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($updateStmt === false) {
             $error = 'Không thể chuẩn bị truy vấn cập nhật nhà vận chuyển.';
         } else {
-            $updateStmt->bind_param('ssii', $shipperName, $phone, $isActive, $shipperID);
+            $updateStmt->bind_param('ssi', $shipperName, $phone, $shipperID);
 
             if ($updateStmt->execute()) {
                 $updateStmt->close();
@@ -128,24 +123,6 @@ require_once '/var/www/src/includes/admin/navbar.php';
                 name="phone"
                 value="<?= htmlspecialchars($_POST['phone'] ?? $shipper['Phone'] ?? '') ?>"
             >
-        </div>
-
-        <div class="form-check mb-3">
-            <input
-                type="checkbox"
-                class="form-check-input"
-                id="isActive"
-                name="is_active"
-                value="1"
-                <?= (
-                    isset($_POST['is_active'])
-                    || (isset($shipper['IsActive']) && (int) $shipper['IsActive'] === 1)
-                    || (isset($formIsActive) && (int) $formIsActive === 1)
-                ) ? 'checked' : '' ?>
-            >
-            <label class="form-check-label" for="isActive">
-                Đang hoạt động
-            </label>
         </div>
 
         <button type="submit" class="btn btn-warning">
