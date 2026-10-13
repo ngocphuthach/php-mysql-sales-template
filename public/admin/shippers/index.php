@@ -19,10 +19,9 @@ $sql = "
     SELECT
         ShipperID,
         ShipperName,
-        Phone,
-        IsActive
+        Phone
     FROM shippers
-    ORDER BY ShipperID DESC
+    ORDER BY ShipperID ASC
 ";
 
 $result = $conn->query($sql);
@@ -47,7 +46,6 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     <th>Mã</th>
                     <th>Tên</th>
                     <th>Số điện thoại</th>
-                    <th>Trạng thái</th>
                     <th>Thao tác</th>
                 </tr>
             </thead>
@@ -61,14 +59,6 @@ require_once '/var/www/src/includes/admin/navbar.php';
                             <td><?= htmlspecialchars($shipper['ShipperName'] ?? '') ?></td>
 
                             <td><?= htmlspecialchars($shipper['Phone'] ?? '') ?></td>
-
-                            <td>
-                                <?php if ((int) ($shipper['IsActive'] ?? 1) === 1): ?>
-                                    <span class="badge bg-success">Đang hoạt động</span>
-                                <?php else: ?>
-                                    <span class="badge bg-secondary">Ngừng hoạt động</span>
-                                <?php endif; ?>
-                            </td>
 
                             <td>
                                 <a href="/admin/shippers/edit.php?id=<?= (int) $shipper['ShipperID'] ?>" class="btn btn-sm btn-warning">
@@ -91,7 +81,7 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     <?php endwhile; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="5" class="text-center text-muted">
+                        <td colspan="4" class="text-center text-muted">
                             Chưa có nhà vận chuyển nào.
                         </td>
                     </tr>

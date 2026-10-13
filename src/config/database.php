@@ -1,9 +1,9 @@
 <?php
 
 $host = 'db';
-$database = getenv('MYSQL_DATABASE');
-$username = getenv('MYSQL_USER');
-$password = getenv('MYSQL_PASSWORD');
+$database = 'sales_db';
+$username = 'root';
+$password = 'root_password';
 
 $conn = new mysqli(
     $host,
