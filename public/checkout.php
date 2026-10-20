@@ -12,6 +12,51 @@ if (empty($cart)) {
     exit;
 }
 
+$isLoggedIn = isset($_SESSION['customer_id']);
+$customerID = null;
+$customerName = '';
+$email = '';
+$phone = '';
+$address = '';
+$errorMessage = '';
+
+if ($isLoggedIn) {
+    $customerID = (int) $_SESSION['customer_id'];
+
+    $sqlCustomerAccount = "
+        SELECT
+            CustomerID,
+            CustomerName,
+            Email,
+            Phone,
+            Address
+        FROM customers
+        WHERE CustomerID = ?
+          AND Email IS NOT NULL
+    ";
+
+    $stmtCustomerAccount = $conn->prepare($sqlCustomerAccount);
+    $stmtCustomerAccount->bind_param('i', $customerID);
+    $stmtCustomerAccount->execute();
+
+    $customerResult = $stmtCustomerAccount->get_result();
+    $customer = $customerResult->fetch_assoc();
+
+    $customerResult->free();
+    $stmtCustomerAccount->close();
+
+    if (!$customer) {
+        unset($_SESSION['customer_id'], $_SESSION['customer_name']);
+        header('Location: /login.php');
+        exit;
+    }
+
+    $customerName = $customer['CustomerName'];
+    $email = $customer['Email'] ?? '';
+    $phone = $customer['Phone'] ?? '';
+    $address = $customer['Address'] ?? '';
+}
+
 function getCartItems($conn, $cart)
 {
     $items = [];
@@ -81,19 +126,27 @@ if (empty($cartItems)) {
     exit;
 }
 
-$errorMessage = '';
-$customerName = '';
-$phone = '';
-$address = '';
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
-    $customerName = trim($_POST['customer_name'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $address = trim($_POST['address'] ?? '');
-
-    if ($customerName === '' || $phone === '' || $address === '') {
-        $errorMessage = 'Vui lòng nhập đầy đủ thông tin khách hàng.';
+    if ($isLoggedIn) {
+        $phone = trim($_POST['phone'] ?? '');
+        $address = trim($_POST['address'] ?? '');
     } else {
+        $customerName = trim($_POST['customer_name'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        $address = trim($_POST['address'] ?? '');
+    }
+
+    if ($isLoggedIn) {
+        if ($phone === '' || $address === '') {
+            $errorMessage = 'Vui lòng nhập đầy đủ thông tin liên hệ.';
+        }
+    } else {
+        if ($customerName === '' || $phone === '' || $address === '') {
+            $errorMessage = 'Vui lòng nhập đầy đủ thông tin khách hàng.';
+        }
+    }
+
+    if ($errorMessage === '') {
         try {
             $conn->begin_transaction();
 
@@ -141,7 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
                 $unitPrice = (float) $product['Price'];
                 $subtotal = $unitPrice * $quantity;
-
                 $orderTotal += $subtotal;
 
                 $orderItems[] = [
@@ -153,22 +205,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             $stmtProduct->close();
 
-            $sqlCustomer = "
-                INSERT INTO customers
-                    (CustomerName, Address, Phone)
-                VALUES (?, ?, ?)
-            ";
+            if ($isLoggedIn) {
+                $sqlAccount = "
+                    SELECT CustomerID
+                    FROM customers
+                    WHERE CustomerID = ?
+                      AND Email IS NOT NULL
+                    FOR UPDATE
+                ";
 
-            $stmtCustomer = $conn->prepare($sqlCustomer);
-            if ($stmtCustomer === false) {
-                throw new Exception('Không thể chuẩn bị truy vấn tạo khách hàng.');
+                $stmtAccount = $conn->prepare($sqlAccount);
+                $stmtAccount->bind_param('i', $customerID);
+                $stmtAccount->execute();
+
+                $accountResult = $stmtAccount->get_result();
+                $account = $accountResult->fetch_assoc();
+
+                $accountResult->free();
+                $stmtAccount->close();
+
+                if (!$account) {
+                    throw new Exception('Tài khoản khách hàng không còn hợp lệ.');
+                }
+
+                $sqlUpdateCustomer = "
+                    UPDATE customers
+                    SET
+                        Phone = ?,
+                        Address = ?
+                    WHERE CustomerID = ?
+                ";
+
+                $stmtUpdateCustomer = $conn->prepare($sqlUpdateCustomer);
+                $stmtUpdateCustomer->bind_param('ssi', $phone, $address, $customerID);
+                $stmtUpdateCustomer->execute();
+                $stmtUpdateCustomer->close();
+            } else {
+                $sqlCustomer = "
+                    INSERT INTO customers (
+                        CustomerName,
+                        Address,
+                        Phone
+                    )
+                    VALUES (?, ?, ?)
+                ";
+
+                $stmtCustomer = $conn->prepare($sqlCustomer);
+                $stmtCustomer->bind_param('sss', $customerName, $address, $phone);
+                $stmtCustomer->execute();
+
+                $customerID = $conn->insert_id;
+                $stmtCustomer->close();
             }
-
-            $stmtCustomer->bind_param('sss', $customerName, $address, $phone);
-            $stmtCustomer->execute();
-
-            $customerID = $conn->insert_id;
-            $stmtCustomer->close();
 
             $status = 'Pending';
 
@@ -179,10 +267,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             ";
 
             $stmtOrder = $conn->prepare($sqlOrder);
-            if ($stmtOrder === false) {
-                throw new Exception('Không thể chuẩn bị truy vấn tạo đơn hàng.');
-            }
-
             $stmtOrder->bind_param('dsi', $orderTotal, $status, $customerID);
             $stmtOrder->execute();
 
@@ -196,9 +280,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             ";
 
             $stmtDetail = $conn->prepare($sqlDetail);
-            if ($stmtDetail === false) {
-                throw new Exception('Không thể chuẩn bị truy vấn chi tiết đơn hàng.');
-            }
 
             $sqlStock = "
                 UPDATE products
@@ -207,9 +288,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             ";
 
             $stmtStock = $conn->prepare($sqlStock);
-            if ($stmtStock === false) {
-                throw new Exception('Không thể chuẩn bị truy vấn cập nhật tồn kho.');
-            }
 
             foreach ($orderItems as $item) {
                 $quantity = $item['Quantity'];
@@ -258,26 +336,42 @@ require_once '/var/www/src/includes/frontend/navbar.php';
         <div class="col-lg-7">
             <div class="card shadow-sm">
                 <div class="card-body">
-
-                    <h2 class="h5 mb-3">
-                        Thông tin khách hàng
-                    </h2>
-
                     <form method="post">
+                        <?php if ($isLoggedIn): ?>
+                            <div class="mb-3">
+                                <label class="form-label">Họ và tên</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    value="<?= htmlspecialchars($customerName) ?>"
+                                    readonly
+                                >
+                            </div>
 
-                        <div class="mb-3">
-                            <label for="customer_name" class="form-label">
-                                Họ tên
-                            </label>
-                            <input
-                                type="text"
-                                class="form-control"
-                                id="customer_name"
-                                name="customer_name"
-                                value="<?= htmlspecialchars($customerName) ?>"
-                                required
-                            >
-                        </div>
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <input
+                                    type="email"
+                                    class="form-control"
+                                    value="<?= htmlspecialchars($email) ?>"
+                                    readonly
+                                >
+                            </div>
+                        <?php else: ?>
+                            <div class="mb-3">
+                                <label for="customer_name" class="form-label">
+                                    Họ và tên
+                                </label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="customer_name"
+                                    name="customer_name"
+                                    value="<?= htmlspecialchars($customerName) ?>"
+                                    required
+                                >
+                            </div>
+                        <?php endif; ?>
 
                         <div class="mb-3">
                             <label for="phone" class="form-label">
@@ -306,16 +400,10 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                             ><?= htmlspecialchars($address) ?></textarea>
                         </div>
 
-                        <button
-                            type="submit"
-                            name="place_order"
-                            class="btn btn-success"
-                        >
+                        <button type="submit" name="place_order" class="btn btn-primary">
                             Xác nhận đặt hàng
                         </button>
-
                     </form>
-
                 </div>
             </div>
         </div>
@@ -323,41 +411,29 @@ require_once '/var/www/src/includes/frontend/navbar.php';
         <div class="col-lg-5">
             <div class="card shadow-sm">
                 <div class="card-body">
-
-                    <h2 class="h5 mb-3">
-                        Đơn hàng của bạn
-                    </h2>
+                    <h2 class="h5 mb-3">Giỏ hàng</h2>
 
                     <?php foreach ($cartItems as $item): ?>
-                        <div class="d-flex justify-content-between border-bottom py-2">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
                             <div>
-                                <strong>
+                                <div class="fw-semibold">
                                     <?= htmlspecialchars($item['ProductName']) ?>
-                                </strong>
-                                <div class="small text-muted">
-                                    <?= (int) $item['Quantity'] ?>
-                                    ×
-                                    <?= number_format((float) $item['Price'], 0, ',', '.') ?> đ
                                 </div>
+                                <small class="text-muted">
+                                    <?= (int) $item['Quantity'] ?> ×
+                                    <?= number_format((float) $item['Price'], 0, ',', '.') ?> đ
+                                </small>
                             </div>
-
-                            <div>
+                            <div class="text-end">
                                 <?= number_format((float) $item['Subtotal'], 0, ',', '.') ?> đ
                             </div>
                         </div>
                     <?php endforeach; ?>
 
-                    <div class="d-flex justify-content-between fw-bold fs-5 pt-3">
-                        <span>Tổng cộng</span>
-                        <span>
-                            <?= number_format((float) $total, 0, ',', '.') ?> đ
-                        </span>
+                    <div class="d-flex justify-content-between align-items-center mt-3 fw-bold">
+                        <span>Tổng tiền</span>
+                        <span><?= number_format((float) $total, 0, ',', '.') ?> đ</span>
                     </div>
-
-                    <a href="/cart.php" class="btn btn-outline-secondary mt-3">
-                        Quay lại giỏ hàng
-                    </a>
-
                 </div>
             </div>
         </div>
@@ -367,6 +443,7 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 </div>
 
 <?php
+
 require_once '/var/www/src/includes/frontend/footer.php';
+
 $conn->close();
-?>
