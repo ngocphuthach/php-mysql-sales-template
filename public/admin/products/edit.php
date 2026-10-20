@@ -11,6 +11,80 @@ if ($productID <= 0) {
     die('Mã sản phẩm không hợp lệ.');
 }
 
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST'
+    && !isset($_POST['set_primary_image'])
+    && !isset($_POST['add_images'])
+    && !isset($_POST['delete_image'])
+) {
+    $productCode = trim($_POST['product_code'] ?? '');
+    $productName = trim($_POST['product_name'] ?? '');
+    $unit = trim($_POST['unit'] ?? '');
+    $price = (float) ($_POST['price'] ?? 0);
+    $stockQuantity = (int) ($_POST['stock_quantity'] ?? 0);
+    $categoryID = (int) ($_POST['category_id'] ?? 0);
+    $supplierID = (int) ($_POST['supplier_id'] ?? 0);
+    $isActive = isset($_POST['is_active']) ? 1 : 0;
+
+    if ($productCode === '') {
+        $error = 'Mã sản phẩm không được để trống.';
+    } elseif ($productName === '') {
+        $error = 'Tên sản phẩm không được để trống.';
+    } elseif ($unit === '') {
+        $error = 'Đơn vị tính không được để trống.';
+    } elseif ($price < 0) {
+        $error = 'Giá sản phẩm không hợp lệ.';
+    } elseif ($stockQuantity < 0) {
+        $error = 'Số lượng tồn kho không hợp lệ.';
+    } elseif ($categoryID <= 0) {
+        $error = 'Vui lòng chọn danh mục.';
+    } elseif ($supplierID <= 0) {
+        $error = 'Vui lòng chọn nhà cung cấp.';
+    } else {
+        $sqlUpdate = "
+            UPDATE products
+            SET
+                ProductCode = ?,
+                ProductName = ?,
+                Unit = ?,
+                Price = ?,
+                StockQuantity = ?,
+                IsActive = ?,
+                SupplierID = ?,
+                CategoryID = ?
+            WHERE ProductID = ?
+        ";
+
+        $stmtUpdate = $conn->prepare($sqlUpdate);
+
+        if ($stmtUpdate === false) {
+            $error = 'Không thể chuẩn bị truy vấn cập nhật sản phẩm.';
+        } else {
+            $stmtUpdate->bind_param(
+                'sssdiiiii',
+                $productCode,
+                $productName,
+                $unit,
+                $price,
+                $stockQuantity,
+                $isActive,
+                $supplierID,
+                $categoryID,
+                $productID
+            );
+
+            if ($stmtUpdate->execute()) {
+                $stmtUpdate->close();
+                header('Location: /admin/products/edit.php?id=' . $productID . '&updated=1');
+                exit;
+            }
+
+            $error = 'Không thể cập nhật sản phẩm.';
+            $stmtUpdate->close();
+        }
+    }
+}
+
 // ==========================================
 // MỤC 5.2: XỬ LÝ POST ĐỔI ẢNH CHÍNH (ĐẶT TRƯỚC)
 // ==========================================
