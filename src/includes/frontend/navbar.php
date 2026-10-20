@@ -1,3 +1,9 @@
+<?php
+
+$cartCount = array_sum($_SESSION['cart'] ?? []);
+
+?>
+
 <nav class="navbar navbar-expand-lg bg-dark navbar-dark">
 
     <div class="container">
@@ -35,6 +41,16 @@
                 </li>
 
             </ul>
+
+            <div class="ms-auto d-flex gap-2">
+                <a class="btn btn-outline-light btn-sm" href="/cart.php">
+                    Giỏ hàng (<?= (int) $cartCount ?>)
+                </a>
+
+                <a class="btn btn-outline-light btn-sm" href="/admin/">
+                    Quản trị
+                </a>
+            </div>
 
         </div>
 

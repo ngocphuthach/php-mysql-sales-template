@@ -1,5 +1,6 @@
 <?php
 
+require_once '/var/www/src/config/session.php';
 require_once '/var/www/src/config/database.php';
 
 $sqlCategories = "
@@ -98,6 +99,9 @@ $countResult = $stmtCount->get_result();
 $countRow = $countResult->fetch_assoc();
 
 $totalProducts = (int) ($countRow['TotalProducts'] ?? 0);
+
+$countResult->free();
+$stmtCount->close();
 
 $totalPages = (int) ceil($totalProducts / $itemsPerPage);
 
@@ -205,6 +209,7 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 
     <div class="mb-4">
         <h1>Sản phẩm</h1>
+
         <p class="text-muted">
             Khám phá các sản phẩm hiện có tại cửa hàng.
         </p>
@@ -390,8 +395,6 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 
 $result->free();
 $stmt->close();
-$countResult->free();
-$stmtCount->close();
 
 require_once '/var/www/src/includes/frontend/footer.php';
 $conn->close();
