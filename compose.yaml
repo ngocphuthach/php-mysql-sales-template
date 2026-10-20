@@ -9,6 +9,7 @@ services:
       - ./public:/var/www/html
       - ./src:/var/www/src
     environment:
+      TZ: Asia/Ho_Chi_Minh
       MYSQL_DATABASE: sales_db
       MYSQL_USER: root
       MYSQL_PASSWORD: root_password
@@ -18,6 +19,7 @@ services:
   db:
     image: mysql:8.4
     environment:
+      TZ: Asia/Ho_Chi_Minh
       MYSQL_ROOT_PASSWORD: root_password
       MYSQL_DATABASE: sales_db
       MYSQL_USER: sales_user
