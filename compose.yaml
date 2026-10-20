@@ -24,6 +24,7 @@ services:
       MYSQL_PASSWORD: sales_password
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d
 
 volumes:
   mysql_data:

@@ -9,7 +9,6 @@ $conn->query("
         ShipperID INT NOT NULL AUTO_INCREMENT,
         ShipperName VARCHAR(255) NOT NULL,
         Phone VARCHAR(50) DEFAULT NULL,
-        IsActive TINYINT(1) NOT NULL DEFAULT 1,
         CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (ShipperID)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
