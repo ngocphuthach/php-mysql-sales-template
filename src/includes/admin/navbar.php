@@ -25,8 +25,8 @@
                 </li>
 
                 <li class="nav-item">
-    			<a class="nav-link" href="/admin/products/">Sản phẩm</a>
-		</li>
+                    <a class="nav-link" href="/admin/products/">Sản phẩm</a>
+                </li>
 
                 <li class="nav-item">
                     <a class="nav-link" href="/admin/shippers/">
@@ -35,7 +35,7 @@
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="#">
+                    <a class="nav-link" href="/admin/orders/">
                         Đơn hàng
                     </a>
                 </li>

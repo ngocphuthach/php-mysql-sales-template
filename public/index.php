@@ -1,4 +1,7 @@
 <?php
+
+require_once '/var/www/src/config/session.php';
+
 $pageTitle = 'Trang chủ';
 
 require_once '/var/www/src/includes/frontend/header.php';
@@ -17,3 +20,4 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 
 <?php
 require_once '/var/www/src/includes/frontend/footer.php';
+?>
