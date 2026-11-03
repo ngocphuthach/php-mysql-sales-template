@@ -1,0 +1,2 @@
+ALTER TABLE customers
+    ADD COLUMN Phone VARCHAR(20) NULL AFTER Country;
