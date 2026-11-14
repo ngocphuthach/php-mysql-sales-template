@@ -1,7 +1,8 @@
-<footer class="mt-5 p-4 bg-dark text-white text-center">
-    <p class="mb-0">
-        Hệ thống quản lý bán hàng
-    </p>
+<footer>
+    <div class="container d-flex flex-column flex-sm-row justify-content-between gap-2">
+        <span>Maison Parfum · Không gian quản trị</span>
+        <span>&copy; <?= date('Y') ?> Bảo mật và quản lý cửa hàng</span>
+    </div>
 </footer>
 
 </body>

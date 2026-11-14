@@ -3,31 +3,44 @@
 require_once '/var/www/src/config/session.php';
 require_once '/var/www/src/config/database.php';
 
-$sqlCategories = "
-    SELECT
-        CategoryID,
-        CategoryName
-    FROM categories
-    ORDER BY CategoryName
-";
-
-$categoryResult = $conn->query($sqlCategories);
-
-$categories = [];
-
-while ($category = $categoryResult->fetch_assoc()) {
-    $categories[] = $category;
-}
-
-$categoryResult->free();
-
-$categoryID = isset($_GET['category'])
-    ? (int) $_GET['category']
-    : 0;
-
 $keyword = isset($_GET['keyword'])
     ? trim($_GET['keyword'])
     : '';
+
+$brand = trim($_GET['brand'] ?? '');
+$gender = trim($_GET['gender'] ?? '');
+
+$priceBoundsResult = $conn->query("
+    SELECT
+        CEIL(MAX(Price * (1 - Discount / 100))) AS MaxPrice
+    FROM products p
+    INNER JOIN categories c ON c.CategoryID = p.CategoryID
+    WHERE p.IsActive = 1
+      AND c.IsActive = 1
+");
+$priceBounds = $priceBoundsResult->fetch_assoc();
+$priceBoundsResult->free();
+$priceFloor = 0;
+$priceCeiling = (int) ($priceBounds['MaxPrice'] ?? 0);
+
+$minPriceInput = trim($_GET['min_price'] ?? '');
+$maxPriceInput = trim($_GET['max_price'] ?? '');
+$minPrice = is_numeric($minPriceInput)
+    ? max($priceFloor, min($priceCeiling, (int) $minPriceInput))
+    : $priceFloor;
+$maxPrice = is_numeric($maxPriceInput)
+    ? max($priceFloor, min($priceCeiling, (int) $maxPriceInput))
+    : $priceCeiling;
+
+if (!in_array($gender, ['', 'Nam', 'Nữ', 'Unisex'], true)) {
+    $gender = '';
+}
+
+if ($minPrice > $maxPrice) {
+    [$minPrice, $maxPrice] = [$maxPrice, $minPrice];
+}
+$minPriceInput = (string) $minPrice;
+$maxPriceInput = (string) $maxPrice;
 
 $itemsPerPage = 6;
 
@@ -39,33 +52,62 @@ if ($page < 1) {
     $page = 1;
 }
 
-$searchKeyword = '%' . $keyword . '%';
-
-$sqlCount = "
-    SELECT
-        COUNT(*) AS TotalProducts
-    FROM
-        products p,
-        categories c
-    WHERE
-        p.CategoryID = c.CategoryID
-        AND p.IsActive = 1
-";
-
-if ($categoryID > 0) {
-    $sqlCount .= "
-        AND p.CategoryID = ?
-    ";
-}
+$conditions = [
+    'p.CategoryID = c.CategoryID',
+    'p.IsActive = 1',
+    'c.IsActive = 1'
+];
+$filterValues = [];
+$filterTypes = '';
 
 if ($keyword !== '') {
-    $sqlCount .= "
-        AND (
-            p.ProductName LIKE ?
-            OR p.ProductCode LIKE ?
-        )
-    ";
+    $conditions[] = '(p.ProductName LIKE ? OR p.ProductCode LIKE ?)';
+    $searchKeyword = '%' . $keyword . '%';
+    $filterValues[] = $searchKeyword;
+    $filterValues[] = $searchKeyword;
+    $filterTypes .= 'ss';
 }
+
+if ($brand !== '') {
+    $conditions[] = "COALESCE(NULLIF(p.Brand, ''), c.CategoryName) = ?";
+    $filterValues[] = $brand;
+    $filterTypes .= 's';
+}
+
+if ($gender !== '') {
+    $conditions[] = 'COALESCE(NULLIF(p.Gender, \'\'), \'Unisex\') = ?';
+    $filterValues[] = $gender;
+    $filterTypes .= 's';
+}
+
+$conditions[] = 'p.Price * (1 - p.Discount / 100) >= ?';
+$filterValues[] = $minPrice;
+$filterTypes .= 'd';
+$conditions[] = 'p.Price * (1 - p.Discount / 100) <= ?';
+$filterValues[] = $maxPrice;
+$filterTypes .= 'd';
+
+$whereClause = implode("\n        AND ", $conditions);
+
+$brandResult = $conn->query("
+    SELECT DISTINCT COALESCE(NULLIF(p.Brand, ''), c.CategoryName) AS Brand
+    FROM products p
+    INNER JOIN categories c ON c.CategoryID = p.CategoryID
+    WHERE p.IsActive = 1
+      AND c.IsActive = 1
+    ORDER BY Brand
+");
+$brands = [];
+while ($brandRow = $brandResult->fetch_assoc()) {
+    $brands[] = $brandRow['Brand'];
+}
+$brandResult->free();
+
+$sqlCount = "
+    SELECT COUNT(*) AS TotalProducts
+    FROM products p, categories c
+    WHERE {$whereClause}
+";
 
 $stmtCount = $conn->prepare($sqlCount);
 
@@ -73,24 +115,8 @@ if ($stmtCount === false) {
     die('Không thể chuẩn bị truy vấn đếm sản phẩm.');
 }
 
-if ($categoryID > 0 && $keyword !== '') {
-    $stmtCount->bind_param(
-        'iss',
-        $categoryID,
-        $searchKeyword,
-        $searchKeyword
-    );
-} elseif ($categoryID > 0) {
-    $stmtCount->bind_param(
-        'i',
-        $categoryID
-    );
-} elseif ($keyword !== '') {
-    $stmtCount->bind_param(
-        'ss',
-        $searchKeyword,
-        $searchKeyword
-    );
+if ($filterValues !== []) {
+    $stmtCount->bind_param($filterTypes, ...$filterValues);
 }
 
 $stmtCount->execute();
@@ -116,7 +142,13 @@ $sql = "
         p.ProductID,
         p.ProductCode,
         p.ProductName,
+        p.Brand,
+        p.Volume,
+        p.Concentration,
+        p.Gender,
         p.Price,
+        p.Discount,
+        p.Price * (1 - p.Discount / 100) AS SellingPrice,
         c.CategoryName,
 
         (
@@ -132,24 +164,8 @@ $sql = "
         categories c
 
     WHERE
-        p.CategoryID = c.CategoryID
-        AND p.IsActive = 1
+        {$whereClause}
 ";
-
-if ($categoryID > 0) {
-    $sql .= "
-        AND p.CategoryID = ?
-    ";
-}
-
-if ($keyword !== '') {
-    $sql .= "
-        AND (
-            p.ProductName LIKE ?
-            OR p.ProductCode LIKE ?
-        )
-    ";
-}
 
 $sql .= "
     ORDER BY
@@ -164,37 +180,9 @@ if ($stmt === false) {
     die('Không thể chuẩn bị truy vấn danh sách sản phẩm.');
 }
 
-if ($categoryID > 0 && $keyword !== '') {
-    $stmt->bind_param(
-        'issii',
-        $categoryID,
-        $searchKeyword,
-        $searchKeyword,
-        $itemsPerPage,
-        $offset
-    );
-} elseif ($categoryID > 0) {
-    $stmt->bind_param(
-        'iii',
-        $categoryID,
-        $itemsPerPage,
-        $offset
-    );
-} elseif ($keyword !== '') {
-    $stmt->bind_param(
-        'ssii',
-        $searchKeyword,
-        $searchKeyword,
-        $itemsPerPage,
-        $offset
-    );
-} else {
-    $stmt->bind_param(
-        'ii',
-        $itemsPerPage,
-        $offset
-    );
-}
+$listValues = [...$filterValues, $itemsPerPage, $offset];
+$listTypes = $filterTypes . 'ii';
+$stmt->bind_param($listTypes, ...$listValues);
 
 $stmt->execute();
 $result = $stmt->get_result();
@@ -205,20 +193,21 @@ require_once '/var/www/src/includes/frontend/header.php';
 require_once '/var/www/src/includes/frontend/navbar.php';
 ?>
 
-<main class="container py-5">
+<main class="container storefront-catalog py-5">
 
     <div class="mb-4">
-        <h1>Sản phẩm</h1>
+        <span class="storefront-eyebrow">Maison Parfum · Bộ sưu tập</span>
+        <h1 class="mt-2">Khám phá nước hoa</h1>
 
         <p class="text-muted">
-            Khám phá các sản phẩm hiện có tại cửa hàng.
+            Tìm mùi hương phù hợp với cá tính, phong cách và khoảnh khắc của bạn.
         </p>
     </div>
 
     <form
         method="get"
         action="/products.php"
-        class="row g-3 mb-4"
+        class="row g-3 mb-4 p-3 border bg-white"
     >
         <div class="col-md-6 col-lg-4">
             <label for="keyword" class="form-label">
@@ -236,28 +225,71 @@ require_once '/var/www/src/includes/frontend/navbar.php';
         </div>
 
         <div class="col-md-6 col-lg-4">
-            <label for="category" class="form-label">
-                Danh mục
-            </label>
-
-            <select
-                name="category"
-                id="category"
-                class="form-select"
-            >
-                <option value="0">
-                    Tất cả danh mục
-                </option>
-
-                <?php foreach ($categories as $category): ?>
+            <label for="brand" class="form-label">Thương hiệu</label>
+            <select name="brand" id="brand" class="form-select">
+                <option value="">Tất cả thương hiệu</option>
+                <?php foreach ($brands as $brandOption): ?>
                     <option
-                        value="<?= (int) $category['CategoryID'] ?>"
-                        <?= $categoryID === (int) $category['CategoryID'] ? 'selected' : '' ?>
+                        value="<?= htmlspecialchars($brandOption) ?>"
+                        <?= $brand === $brandOption ? 'selected' : '' ?>
                     >
-                        <?= htmlspecialchars($category['CategoryName']) ?>
+                        <?= htmlspecialchars($brandOption) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <label for="gender" class="form-label">Danh mục</label>
+            <select name="gender" id="gender" class="form-select">
+                <option value="">Tất cả danh mục</option>
+                <?php foreach (['Nam', 'Nữ', 'Unisex'] as $genderOption): ?>
+                    <option
+                        value="<?= htmlspecialchars($genderOption) ?>"
+                        <?= $gender === $genderOption ? 'selected' : '' ?>
+                    >
+                        <?= htmlspecialchars($genderOption) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-12 col-lg-8">
+            <fieldset class="price-range">
+                <legend class="form-label mb-1">Khoảng giá</legend>
+                <div class="d-flex justify-content-between small mb-2">
+                    <span>Từ <strong id="minPriceLabel"><?= number_format($minPrice, 0, ',', '.') ?> đ</strong></span>
+                    <span>Đến <strong id="maxPriceLabel"><?= number_format($maxPrice, 0, ',', '.') ?> đ</strong></span>
+                </div>
+                <div class="price-range-sliders">
+                    <input
+                        type="range"
+                        class="form-range"
+                        id="min_price"
+                        name="min_price"
+                        min="<?= $priceFloor ?>"
+                        max="<?= $priceCeiling ?>"
+                        step="1"
+                        value="<?= $minPrice ?>"
+                        aria-label="Giá thấp nhất"
+                    >
+                    <input
+                        type="range"
+                        class="form-range"
+                        id="max_price"
+                        name="max_price"
+                        min="<?= $priceFloor ?>"
+                        max="<?= $priceCeiling ?>"
+                        step="1"
+                        value="<?= $maxPrice ?>"
+                        aria-label="Giá cao nhất"
+                    >
+                </div>
+                <div class="d-flex justify-content-between text-muted small">
+                    <span><?= number_format($priceFloor, 0, ',', '.') ?> đ</span>
+                    <span><?= number_format($priceCeiling, 0, ',', '.') ?> đ</span>
+                </div>
+            </fieldset>
         </div>
 
         <div class="col-md-auto align-self-end">
@@ -279,52 +311,75 @@ require_once '/var/www/src/includes/frontend/navbar.php';
         <div class="row g-4">
             <?php while ($product = $result->fetch_assoc()): ?>
                 <div class="col-md-6 col-lg-4">
-                    <div class="card h-100">
+                    <div class="card storefront-product-card h-100">
                         <?php if (!empty($product['ImageFile'])): ?>
                             <div
-                                class="bg-light d-flex align-items-center justify-content-center p-3"
-                                style="height: 260px;"
+                                class="storefront-product-image"
                             >
                                 <img
                                     src="/uploads/products/<?= htmlspecialchars($product['ImageFile']) ?>"
                                     alt="<?= htmlspecialchars($product['ProductName']) ?>"
-                                    style="
-                                        width: 100%;
-                                        height: 100%;
-                                        object-fit: contain;
-                                    "
+                                    loading="lazy"
                                 >
                             </div>
                         <?php else: ?>
                             <div
-                                class="bg-light d-flex align-items-center justify-content-center text-muted"
-                                style="height: 260px;"
+                                class="storefront-product-image"
                             >
-                                Chưa có hình ảnh
+                                <span class="storefront-product-placeholder" aria-hidden="true">M</span>
                             </div>
                         <?php endif; ?>
 
                         <div class="card-body d-flex flex-column">
-                            <p class="text-muted small mb-1">
-                                <?= htmlspecialchars($product['CategoryName']) ?>
-                            </p>
+                            <?php if (!empty($product['Brand'])): ?>
+                                <p class="text-muted small mb-1">
+                                    <?= htmlspecialchars($product['Brand']) ?>
+                                    <?php if ($product['CategoryName'] !== $product['Brand']): ?>
+                                        · <?= htmlspecialchars($product['CategoryName']) ?>
+                                    <?php endif; ?>
+                                </p>
+                            <?php else: ?>
+                                <p class="text-muted small mb-1">
+                                    <?= htmlspecialchars($product['CategoryName']) ?>
+                                </p>
+                            <?php endif; ?>
 
-                            <h5 class="card-title">
+                            <h2 class="card-title">
                                 <?= htmlspecialchars($product['ProductName']) ?>
-                            </h5>
+                            </h2>
 
                             <p class="text-muted small">
                                 Mã sản phẩm:
                                 <?= htmlspecialchars($product['ProductCode']) ?>
                             </p>
 
-                            <p class="fw-bold fs-5 mb-3">
-                                <?= number_format((float) $product['Price'], 0, ',', '.') ?> đ
+                            <?php if (
+                                !empty($product['Volume'])
+                                || !empty($product['Concentration'])
+                                || !empty($product['Gender'])
+                            ): ?>
+                                <p class="small text-muted mb-2">
+                                    <?= $product['Volume'] !== null ? htmlspecialchars((string) $product['Volume']) . ' ml' : '' ?>
+                                    <?= !empty($product['Concentration']) ? ' · ' . htmlspecialchars($product['Concentration']) : '' ?>
+                                    <?= !empty($product['Gender']) ? ' · ' . htmlspecialchars($product['Gender']) : '' ?>
+                                </p>
+                            <?php endif; ?>
+
+                            <p class="storefront-price fw-bold fs-5 mb-3">
+                                <?= number_format((float) $product['SellingPrice'], 0, ',', '.') ?> đ
+                                <?php if ((float) $product['Discount'] > 0): ?>
+                                    <span class="text-muted small text-decoration-line-through">
+                                        <?= number_format((float) $product['Price'], 0, ',', '.') ?> đ
+                                    </span>
+                                    <span class="badge bg-danger">
+                                        -<?= rtrim(rtrim(number_format((float) $product['Discount'], 2, '.', ''), '0'), '.') ?>%
+                                    </span>
+                                <?php endif; ?>
                             </p>
 
                             <a
                                 href="/product-detail.php?id=<?= (int) $product['ProductID'] ?>"
-                                class="btn btn-outline-primary mt-auto"
+                                class="btn storefront-btn mt-auto"
                             >
                                 Xem chi tiết
                             </a>
@@ -345,7 +400,10 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                 <?php
                 $previousQuery = http_build_query([
                     'keyword' => $keyword,
-                    'category' => $categoryID,
+                    'brand' => $brand,
+                    'gender' => $gender,
+                    'min_price' => $minPriceInput,
+                    'max_price' => $maxPriceInput,
                     'page' => max(1, $page - 1)
                 ]);
                 ?>
@@ -360,7 +418,10 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                     <?php
                     $query = http_build_query([
                         'keyword' => $keyword,
-                        'category' => $categoryID,
+                        'brand' => $brand,
+                        'gender' => $gender,
+                        'min_price' => $minPriceInput,
+                        'max_price' => $maxPriceInput,
                         'page' => $pageNumber
                     ]);
                     ?>
@@ -375,7 +436,10 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                 <?php
                 $nextQuery = http_build_query([
                     'keyword' => $keyword,
-                    'category' => $categoryID,
+                    'brand' => $brand,
+                    'gender' => $gender,
+                    'min_price' => $minPriceInput,
+                    'max_price' => $maxPriceInput,
                     'page' => min($totalPages, $page + 1)
                 ]);
                 ?>
@@ -390,6 +454,47 @@ require_once '/var/www/src/includes/frontend/navbar.php';
     <?php endif; ?>
 
 </main>
+
+<script>
+    const minPriceSlider = document.getElementById('min_price');
+    const maxPriceSlider = document.getElementById('max_price');
+    const priceRangeTrack = document.querySelector('.price-range-sliders');
+    const minPriceLabel = document.getElementById('minPriceLabel');
+    const maxPriceLabel = document.getElementById('maxPriceLabel');
+    const formatPrice = (price) => new Intl.NumberFormat('vi-VN').format(price) + ' đ';
+
+    function updatePriceRange(changedSlider) {
+        let minPrice = Number(minPriceSlider.value);
+        let maxPrice = Number(maxPriceSlider.value);
+
+        if (minPrice > maxPrice) {
+            if (changedSlider === minPriceSlider) {
+                minPriceSlider.value = maxPrice;
+                minPrice = maxPrice;
+            } else {
+                maxPriceSlider.value = minPrice;
+                maxPrice = minPrice;
+            }
+        }
+
+        minPriceLabel.textContent = formatPrice(minPrice);
+        maxPriceLabel.textContent = formatPrice(maxPrice);
+
+        const range = Number(maxPriceSlider.max) - Number(minPriceSlider.min);
+        const startPercent = range === 0
+            ? 0
+            : ((minPrice - Number(minPriceSlider.min)) / range) * 100;
+        const endPercent = range === 0
+            ? 100
+            : ((maxPrice - Number(minPriceSlider.min)) / range) * 100;
+        priceRangeTrack.style.setProperty('--range-start', startPercent + '%');
+        priceRangeTrack.style.setProperty('--range-end', endPercent + '%');
+    }
+
+    minPriceSlider.addEventListener('input', () => updatePriceRange(minPriceSlider));
+    maxPriceSlider.addEventListener('input', () => updatePriceRange(maxPriceSlider));
+    updatePriceRange();
+</script>
 
 <?php
 

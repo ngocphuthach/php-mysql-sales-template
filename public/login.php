@@ -5,6 +5,11 @@ require_once '/var/www/src/config/database.php';
 
 $pageTitle = 'Đăng nhập';
 
+if (isset($_SESSION['employee_id'])) {
+    header('Location: /admin/');
+    exit;
+}
+
 if (isset($_SESSION['customer_id'])) {
     header('Location: /');
     exit;
@@ -49,12 +54,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ) {
             session_regenerate_id(true);
 
+            unset(
+                $_SESSION['employee_id'],
+                $_SESSION['employee_role'],
+                $_SESSION['employee_name']
+            );
             $_SESSION['customer_id'] = (int) $customer['CustomerID'];
             $_SESSION['customer_name'] = $customer['CustomerName'];
 
             header('Location: /');
             exit;
         } else {
+            $sqlEmployee = "
+                SELECT
+                    EmployeeID,
+                    CONCAT(FirstName, ' ', LastName) AS EmployeeName,
+                    Email,
+                    PasswordHash,
+                    Role
+                FROM employees
+                WHERE Email = ?
+                  AND IsActive = 1
+            ";
+
+            $stmtEmployee = $conn->prepare($sqlEmployee);
+            $stmtEmployee->bind_param('s', $email);
+            $stmtEmployee->execute();
+
+            $employeeResult = $stmtEmployee->get_result();
+            $employee = $employeeResult->fetch_assoc();
+
+            $employeeResult->free();
+            $stmtEmployee->close();
+
+            if (
+                $employee
+                && !empty($employee['PasswordHash'])
+                && password_verify($password, $employee['PasswordHash'])
+                && in_array($employee['Role'], ['staff', 'admin'], true)
+            ) {
+                session_regenerate_id(true);
+
+                unset(
+                    $_SESSION['customer_id'],
+                    $_SESSION['customer_name']
+                );
+                $_SESSION['employee_id'] = (int) $employee['EmployeeID'];
+                $_SESSION['employee_role'] = $employee['Role'];
+                $_SESSION['employee_name'] = $employee['EmployeeName'];
+
+                header('Location: /admin/');
+                exit;
+            }
+
             $errorMessage = 'Email hoặc mật khẩu không đúng.';
         }
     }

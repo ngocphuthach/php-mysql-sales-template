@@ -2,6 +2,8 @@
 
 $pageTitle = 'Thêm sản phẩm';
 
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['admin']);
 require_once '/var/www/src/config/database.php';
 
 $error = '';

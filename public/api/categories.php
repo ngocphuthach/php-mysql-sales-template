@@ -7,8 +7,10 @@ header('Content-Type: application/json; charset=utf-8');
 $sql = "
     SELECT
         CategoryID,
-        CategoryName
+        CategoryName,
+        ImageUrl
     FROM categories
+    WHERE IsActive = 1
     ORDER BY CategoryName
 ";
 
@@ -34,7 +36,8 @@ $categories = [];
 while ($row = $result->fetch_assoc()) {
     $categories[] = [
         'id' => (int) $row['CategoryID'],
-        'name' => $row['CategoryName']
+        'name' => $row['CategoryName'],
+        'image' => $row['ImageUrl']
     ];
 }
 

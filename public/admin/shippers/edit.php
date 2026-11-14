@@ -2,17 +2,9 @@
 
 $pageTitle = 'Sửa Nhà vận chuyển';
 
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['admin']);
 require_once '/var/www/src/config/database.php';
-
-$conn->query("
-    CREATE TABLE IF NOT EXISTS shippers (
-        ShipperID INT NOT NULL AUTO_INCREMENT,
-        ShipperName VARCHAR(255) NOT NULL,
-        Phone VARCHAR(50) DEFAULT NULL,
-        CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (ShipperID)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-");
 
 $error = '';
 $shipperID = isset($_GET['id']) ? (int) $_GET['id'] : 0;
@@ -25,7 +17,11 @@ $sql = "
     SELECT
         ShipperID,
         ShipperName,
-        Phone
+        Phone,
+        Email,
+        Website,
+        DefaultFee,
+        IsActive
     FROM shippers
     WHERE ShipperID = ?
 ";
@@ -44,15 +40,31 @@ if (!$shipper) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $shipperName = trim($_POST['shipper_name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $website = trim($_POST['website'] ?? '');
+    $feeInput = trim($_POST['default_fee'] ?? '0');
+    $validatedFee = filter_var($feeInput, FILTER_VALIDATE_FLOAT);
+    $isActive = isset($_POST['is_active']) ? 1 : 0;
 
     if ($shipperName === '') {
         $error = 'Tên nhà vận chuyển không được để trống.';
+    } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Địa chỉ email không hợp lệ.';
+    } elseif ($website !== '' && !filter_var($website, FILTER_VALIDATE_URL)) {
+        $error = 'Địa chỉ website không hợp lệ.';
+    } elseif ($validatedFee === false || !is_finite((float) $validatedFee) || $validatedFee < 0) {
+        $error = 'Phí vận chuyển phải là số không âm.';
     } else {
+        $defaultFee = (float) $validatedFee;
         $updateSql = "
             UPDATE shippers
             SET
                 ShipperName = ?,
-                Phone = ?
+                Phone = ?,
+                Email = ?,
+                Website = ?,
+                DefaultFee = ?,
+                IsActive = ?
             WHERE ShipperID = ?
         ";
 
@@ -61,7 +73,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($updateStmt === false) {
             $error = 'Không thể chuẩn bị truy vấn cập nhật nhà vận chuyển.';
         } else {
-            $updateStmt->bind_param('ssi', $shipperName, $phone, $shipperID);
+            $updateStmt->bind_param(
+                'ssssdii',
+                $shipperName,
+                $phone,
+                $email,
+                $website,
+                $defaultFee,
+                $isActive,
+                $shipperID
+            );
 
             if ($updateStmt->execute()) {
                 $updateStmt->close();
@@ -122,6 +143,59 @@ require_once '/var/www/src/includes/admin/navbar.php';
                 name="phone"
                 value="<?= htmlspecialchars($_POST['phone'] ?? $shipper['Phone'] ?? '') ?>"
             >
+        </div>
+
+        <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input
+                type="email"
+                class="form-control"
+                id="email"
+                name="email"
+                value="<?= htmlspecialchars($_POST['email'] ?? $shipper['Email'] ?? '') ?>"
+            >
+        </div>
+
+        <div class="row">
+            <div class="col-md-8 mb-3">
+                <label for="website" class="form-label">Website</label>
+                <input
+                    type="url"
+                    class="form-control"
+                    id="website"
+                    name="website"
+                    value="<?= htmlspecialchars($_POST['website'] ?? $shipper['Website'] ?? '') ?>"
+                >
+            </div>
+            <div class="col-md-4 mb-3">
+                <label for="defaultFee" class="form-label">Phí mặc định (VNĐ)</label>
+                <input
+                    type="number"
+                    class="form-control"
+                    id="defaultFee"
+                    name="default_fee"
+                    min="0"
+                    step="1000"
+                    value="<?= htmlspecialchars($_POST['default_fee'] ?? $shipper['DefaultFee'] ?? '0') ?>"
+                    required
+                >
+            </div>
+        </div>
+
+        <div class="form-check mb-3">
+            <input
+                type="checkbox"
+                class="form-check-input"
+                id="isActive"
+                name="is_active"
+                value="1"
+                <?= ($_SERVER['REQUEST_METHOD'] === 'POST'
+                    ? isset($_POST['is_active'])
+                    : (int) $shipper['IsActive'] === 1) ? 'checked' : '' ?>
+            >
+            <label class="form-check-label" for="isActive">
+                Đang hợp tác
+            </label>
         </div>
 
         <button type="submit" class="btn btn-warning">

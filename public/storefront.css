@@ -1,0 +1,487 @@
+:root {
+    --perfume-ink: #211b19;
+    --perfume-muted: #766b64;
+    --perfume-cream: #f7f3ed;
+    --perfume-rose: #ead9cf;
+    --perfume-gold: #b48b55;
+    --perfume-line: #e8dfd7;
+}
+
+body {
+    color: var(--perfume-ink);
+    background: #fffdfa;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.storefront-navbar {
+    background: rgba(255, 253, 250, .97);
+    border-bottom: 1px solid var(--perfume-line);
+    box-shadow: 0 4px 24px rgba(48, 34, 24, .04);
+}
+
+.storefront-navbar .navbar-brand {
+    color: var(--perfume-ink);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+
+.storefront-navbar .nav-link {
+    color: #554943;
+    font-size: .94rem;
+}
+
+.storefront-navbar .nav-link:hover,
+.storefront-navbar .nav-link:focus {
+    color: #9c7041;
+}
+
+.storefront-brand-mark {
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    margin-right: .55rem;
+    place-items: center;
+    border: 1px solid var(--perfume-gold);
+    border-radius: 50%;
+    color: var(--perfume-gold);
+    font-family: Georgia, "Times New Roman", serif;
+}
+
+.storefront-btn {
+    border-color: var(--perfume-ink);
+    border-radius: 2px;
+    background: var(--perfume-ink);
+    color: #fff;
+    letter-spacing: .04em;
+}
+
+.storefront-btn:hover,
+.storefront-btn:focus {
+    border-color: #9c7041;
+    background: #9c7041;
+    color: #fff;
+}
+
+.storefront-btn-outline {
+    border: 1px solid rgba(255, 255, 255, .8);
+    border-radius: 2px;
+    color: #fff;
+}
+
+.storefront-btn-outline:hover,
+.storefront-btn-outline:focus {
+    background: #fff;
+    color: var(--perfume-ink);
+}
+
+.storefront-hero {
+    overflow: hidden;
+    background: #211b19;
+}
+
+.storefront-hero .carousel-item {
+    min-height: 570px;
+    background-color: #211b19;
+    background-position: center;
+    background-size: cover;
+}
+
+.storefront-hero .carousel-item::before {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(24, 19, 17, .83), rgba(24, 19, 17, .42) 55%, rgba(24, 19, 17, .12));
+    content: "";
+}
+
+.storefront-hero .hero-slide-one {
+    background-image: url("https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=2000&q=85");
+}
+
+.storefront-hero .hero-slide-two {
+    background-image: url("https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=2000&q=85");
+}
+
+.storefront-hero .hero-slide-three {
+    background-image: url("https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=2000&q=85");
+}
+
+.storefront-hero .carousel-caption {
+    right: auto;
+    bottom: auto;
+    left: max(8%, calc((100% - 1140px) / 2));
+    top: 50%;
+    width: min(670px, 78%);
+    padding: 0;
+    text-align: left;
+    transform: translateY(-50%);
+}
+
+.storefront-eyebrow {
+    color: var(--perfume-gold);
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.storefront-hero h1,
+.storefront-hero h2 {
+    max-width: 650px;
+    margin: 1rem 0 1.15rem;
+    color: #fff;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: clamp(2.5rem, 4.6vw, 4.15rem);
+    font-weight: 600;
+    letter-spacing: -.025em;
+    line-height: 1.12;
+    text-wrap: balance;
+}
+
+.storefront-hero p {
+    max-width: 590px;
+    margin-bottom: 1.5rem;
+    color: rgba(255, 255, 255, .83);
+    font-size: 1.05rem;
+    line-height: 1.75;
+}
+
+.storefront-hero .carousel-indicators [data-bs-target] {
+    width: 28px;
+    height: 3px;
+}
+
+.storefront-benefits {
+    border-bottom: 1px solid var(--perfume-line);
+    background: #fffdfa;
+}
+
+.storefront-benefit {
+    padding: 1.35rem 1rem;
+    color: #574c44;
+    font-size: .9rem;
+    text-align: center;
+}
+
+.storefront-section {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+}
+
+.storefront-section-heading {
+    max-width: 650px;
+    margin: 0 auto 2.5rem;
+    text-align: center;
+}
+
+.storefront-section-heading h2 {
+    margin: .65rem 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(2rem, 3.2vw, 2.8rem);
+    font-weight: 400;
+}
+
+.storefront-section-heading p {
+    color: var(--perfume-muted);
+}
+
+.storefront-category-card {
+    display: flex;
+    min-height: 190px;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 1.5rem;
+    border: 1px solid var(--perfume-line);
+    background: linear-gradient(145deg, #f8f1eb, #eee0d5);
+    color: var(--perfume-ink);
+    text-decoration: none;
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.storefront-category-card:nth-child(2n) {
+    background: linear-gradient(145deg, #f2ece4, #e7ddd0);
+}
+
+.storefront-category-card:hover {
+    color: var(--perfume-ink);
+    box-shadow: 0 16px 35px rgba(46, 34, 25, .1);
+    transform: translateY(-4px);
+}
+
+.storefront-category-card span {
+    color: var(--perfume-muted);
+    font-size: .8rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.storefront-category-card strong {
+    margin-top: .5rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.5rem;
+    font-weight: 400;
+}
+
+.storefront-category-card small {
+    color: var(--perfume-muted);
+}
+
+.price-range {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.price-range legend {
+    float: none;
+    width: auto;
+}
+
+.price-range strong {
+    color: #8c6036;
+}
+
+.price-range-sliders {
+    position: relative;
+    height: 1.6rem;
+    margin: .25rem 0;
+}
+
+.price-range-sliders::before,
+.price-range-sliders::after {
+    position: absolute;
+    top: .7rem;
+    right: 0;
+    left: 0;
+    height: 4px;
+    border-radius: 999px;
+    content: "";
+}
+
+.price-range-sliders::before {
+    background: var(--perfume-line);
+}
+
+.price-range-sliders::after {
+    right: calc(100% - var(--range-end, 100%));
+    left: var(--range-start, 0%);
+    background: var(--perfume-gold);
+}
+
+.price-range .form-range {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 1.6rem;
+    margin: 0;
+    appearance: none;
+    background: transparent;
+    pointer-events: none;
+}
+
+.price-range .form-range::-webkit-slider-runnable-track {
+    height: 4px;
+    background: transparent;
+}
+
+.price-range .form-range::-webkit-slider-thumb {
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    appearance: none;
+    border: 2px solid #fffdfa;
+    border-radius: 50%;
+    background: var(--perfume-gold);
+    box-shadow: 0 0 0 1px var(--perfume-gold);
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.price-range .form-range::-moz-range-track {
+    height: 4px;
+    background: transparent;
+}
+
+.price-range .form-range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #fffdfa;
+    border-radius: 50%;
+    background: var(--perfume-gold);
+    box-shadow: 0 0 0 1px var(--perfume-gold);
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.storefront-product-card {
+    overflow: hidden;
+    border: 1px solid var(--perfume-line);
+    border-radius: 0;
+    background: #fff;
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.storefront-product-card:hover {
+    box-shadow: 0 15px 35px rgba(46, 34, 25, .1);
+    transform: translateY(-4px);
+}
+
+.storefront-product-image {
+    height: 300px;
+    background: linear-gradient(145deg, #f6f1eb, #e9ded3);
+}
+
+.storefront-product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    mix-blend-mode: multiply;
+}
+
+.storefront-product-placeholder {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    color: var(--perfume-gold);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 3rem;
+}
+
+.storefront-product-card .card-body {
+    padding: 1.25rem;
+}
+
+.storefront-product-card .card-title {
+    min-height: 3rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.15rem;
+    font-weight: 500;
+}
+
+.storefront-product-card .storefront-price {
+    color: #8c6036;
+}
+
+.storefront-brand-link {
+    display: block;
+    padding: 1.5rem 1rem;
+    border: 1px solid var(--perfume-line);
+    color: var(--perfume-ink);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.25rem;
+    text-align: center;
+    text-decoration: none;
+    transition: border-color .2s ease, color .2s ease;
+}
+
+.storefront-brand-link:hover {
+    border-color: var(--perfume-gold);
+    color: #9c7041;
+}
+
+.storefront-about {
+    background: var(--perfume-cream);
+}
+
+.storefront-about h2 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(2rem, 3.2vw, 2.8rem);
+    font-weight: 400;
+}
+
+.storefront-about-copy {
+    color: var(--perfume-muted);
+    font-size: 1.02rem;
+    line-height: 1.9;
+}
+
+.storefront-about-note {
+    min-height: 300px;
+    padding: 2rem;
+    background: linear-gradient(145deg, #30251f, #745541);
+    color: #fff;
+}
+
+.storefront-about-note blockquote {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(1.6rem, 3vw, 2.3rem);
+    line-height: 1.4;
+}
+
+.storefront-footer {
+    margin-top: 0 !important;
+    padding: 3.5rem 0 1.25rem !important;
+    background: #211b19;
+    color: rgba(255, 255, 255, .75);
+    text-align: left !important;
+}
+
+.storefront-footer a {
+    color: rgba(255, 255, 255, .75);
+    text-decoration: none;
+}
+
+.storefront-footer a:hover {
+    color: #fff;
+}
+
+.storefront-footer .footer-brand {
+    color: #fff;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.4rem;
+}
+
+.storefront-footer-bottom {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, .15);
+    font-size: .85rem;
+}
+
+.storefront-catalog main > .container,
+main.storefront-catalog {
+    min-height: 65vh;
+}
+
+@media (max-width: 767.98px) {
+    .storefront-hero .carousel-item {
+        min-height: 500px;
+    }
+
+    .storefront-hero .carousel-caption {
+        left: 8%;
+        width: 82%;
+    }
+
+    .storefront-hero h1,
+    .storefront-hero h2 {
+        font-size: clamp(2.25rem, 8vw, 3.2rem);
+    }
+
+    .storefront-hero p {
+        font-size: .95rem;
+    }
+
+    .storefront-section {
+        padding-top: 3.5rem;
+        padding-bottom: 3.5rem;
+    }
+
+    .storefront-product-image {
+        height: 250px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+    }
+}

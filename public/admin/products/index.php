@@ -2,6 +2,8 @@
 
 $pageTitle = 'Quản lý sản phẩm';
 
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['admin']);
 require_once '/var/www/src/config/database.php';
 
 $sql = "
@@ -10,23 +12,24 @@ $sql = "
         p.ProductCode,
         p.ProductName,
         p.Unit,
+        p.Brand,
+        p.Volume,
+        p.Concentration,
         p.Price,
+        p.Discount,
         p.StockQuantity,
         p.IsActive,
         c.CategoryName,
         s.SupplierName,
-	pi.ImageFile,
-	pi.AltText
+        pi.ImageFile,
+        pi.AltText
     FROM
-        products AS p,
-        categories AS c,
-        suppliers AS s,
-	product_images AS pi
-    WHERE
-        p.CategoryID = c.CategoryID
-        AND p.SupplierID = s.SupplierID
-	AND p.ProductID = pi.ProductID
-	AND pi.IsPrimary = 1
+        products AS p
+    INNER JOIN categories AS c ON p.CategoryID = c.CategoryID
+    INNER JOIN suppliers AS s ON p.SupplierID = s.SupplierID
+    LEFT JOIN product_images AS pi
+        ON p.ProductID = pi.ProductID
+        AND pi.IsPrimary = 1
     ORDER BY
         p.ProductID
 ";
@@ -59,8 +62,8 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     <th>Tên sản phẩm</th>
                     <th>Danh mục</th>
                     <th>Nhà cung cấp</th>
-                    <th>Đơn vị</th>
-                    <th>Giá</th>
+                    <th>Thông tin nước hoa</th>
+                    <th>Giá bán</th>
                     <th>Tồn kho</th>
                     <th>Trạng thái</th>
                     <th>Thao tác</th>
@@ -94,15 +97,28 @@ require_once '/var/www/src/includes/admin/navbar.php';
 
                     <td><?= htmlspecialchars($product['SupplierName']) ?></td>
 
-                    <td><?= htmlspecialchars($product['Unit'] ?? '') ?></td>
+                    <td>
+                        <?= htmlspecialchars($product['Brand'] ?? '') ?>
+                        <?php if ($product['Volume'] !== null): ?>
+                            <br><small><?= htmlspecialchars((string) $product['Volume']) ?> ml</small>
+                        <?php endif; ?>
+                        <?php if (!empty($product['Concentration'])): ?>
+                            <br><small><?= htmlspecialchars($product['Concentration']) ?></small>
+                        <?php endif; ?>
+                    </td>
 
                     <td class="text-end">
-                        <?= number_format(
-                            (float) $product['Price'],
-                            0,
-                            ',',
-                            '.'
-                        ) ?> đ
+                        <?php
+                        $sellingPrice = (float) $product['Price']
+                            * (1 - (float) $product['Discount'] / 100);
+                        ?>
+                        <?= number_format($sellingPrice, 0, ',', '.') ?> đ
+                        <?php if ((float) $product['Discount'] > 0): ?>
+                            <br><small class="text-muted">
+                                <?= number_format((float) $product['Price'], 0, ',', '.') ?> đ
+                                (-<?= rtrim(rtrim(number_format((float) $product['Discount'], 2, '.', ''), '0'), '.') ?>%)
+                            </small>
+                        <?php endif; ?>
                     </td>
 
                     <td class="text-end">

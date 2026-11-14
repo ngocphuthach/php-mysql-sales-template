@@ -2,29 +2,34 @@
 
 $pageTitle = 'Quản lý Nhà vận chuyển';
 
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['admin']);
 require_once '/var/www/src/config/database.php';
 
-$conn->query("
-    CREATE TABLE IF NOT EXISTS shippers (
-        ShipperID INT NOT NULL AUTO_INCREMENT,
-        ShipperName VARCHAR(255) NOT NULL,
-        Phone VARCHAR(50) DEFAULT NULL,
-        IsActive TINYINT(1) NOT NULL DEFAULT 1,
-        CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (ShipperID)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-");
+$keyword = trim($_GET['q'] ?? '');
+$search = '%' . $keyword . '%';
 
 $sql = "
     SELECT
         ShipperID,
         ShipperName,
-        Phone
+        Phone,
+        Email,
+        Website,
+        DefaultFee,
+        IsActive
     FROM shippers
-    ORDER BY ShipperID ASC
+    WHERE ? = ''
+       OR ShipperName LIKE ?
+       OR Phone LIKE ?
+       OR Email LIKE ?
+    ORDER BY ShipperName
 ";
 
-$result = $conn->query($sql);
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('ssss', $keyword, $search, $search, $search);
+$stmt->execute();
+$result = $stmt->get_result();
 
 require_once '/var/www/src/includes/admin/header.php';
 require_once '/var/www/src/includes/admin/navbar.php';
@@ -39,6 +44,23 @@ require_once '/var/www/src/includes/admin/navbar.php';
         </a>
     </div>
 
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-6">
+            <label for="q" class="form-label">Tìm nhà vận chuyển</label>
+            <input
+                type="search"
+                id="q"
+                name="q"
+                class="form-control"
+                value="<?= htmlspecialchars($keyword) ?>"
+                placeholder="Tên, số điện thoại hoặc email"
+            >
+        </div>
+        <div class="col-auto align-self-end">
+            <button type="submit" class="btn btn-outline-primary">Tìm</button>
+        </div>
+    </form>
+
     <div class="table-responsive">
         <table class="table table-bordered table-striped align-middle">
             <thead class="table-dark">
@@ -46,6 +68,9 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     <th>Mã</th>
                     <th>Tên</th>
                     <th>Số điện thoại</th>
+                    <th>Email</th>
+                    <th>Phí mặc định</th>
+                    <th>Trạng thái</th>
                     <th>Thao tác</th>
                 </tr>
             </thead>
@@ -59,6 +84,15 @@ require_once '/var/www/src/includes/admin/navbar.php';
                             <td><?= htmlspecialchars($shipper['ShipperName'] ?? '') ?></td>
 
                             <td><?= htmlspecialchars($shipper['Phone'] ?? '') ?></td>
+                            <td><?= htmlspecialchars($shipper['Email'] ?? '') ?></td>
+                            <td class="text-end">
+                                <?= number_format((float) $shipper['DefaultFee'], 0, ',', '.') ?> đ
+                            </td>
+                            <td>
+                                <span class="badge <?= (int) $shipper['IsActive'] === 1 ? 'bg-success' : 'bg-secondary' ?>">
+                                    <?= (int) $shipper['IsActive'] === 1 ? 'Đang hợp tác' : 'Ngừng hợp tác' ?>
+                                </span>
+                            </td>
 
                             <td>
                                 <a href="/admin/shippers/edit.php?id=<?= (int) $shipper['ShipperID'] ?>" class="btn btn-sm btn-warning">
@@ -69,11 +103,15 @@ require_once '/var/www/src/includes/admin/navbar.php';
                                     action="/admin/shippers/delete.php"
                                     method="post"
                                     class="d-inline"
-                                    onsubmit="return confirm('Bạn có chắc muốn xóa nhà vận chuyển này?');"
+                                    onsubmit="return confirm('Bạn có chắc muốn <?= (int) $shipper['IsActive'] === 1 ? 'ngừng hợp tác' : 'kích hoạt lại' ?> với đơn vị này?');"
                                 >
                                     <input type="hidden" name="id" value="<?= (int) $shipper['ShipperID'] ?>">
-                                    <button type="submit" class="btn btn-sm btn-danger">
-                                        Xóa
+                                    <input type="hidden" name="action" value="<?= (int) $shipper['IsActive'] === 1 ? 'deactivate' : 'activate' ?>">
+                                    <button
+                                        type="submit"
+                                        class="btn btn-sm <?= (int) $shipper['IsActive'] === 1 ? 'btn-danger' : 'btn-success' ?>"
+                                    >
+                                        <?= (int) $shipper['IsActive'] === 1 ? 'Ngừng' : 'Kích hoạt' ?>
                                     </button>
                                 </form>
                             </td>
@@ -81,7 +119,7 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     <?php endwhile; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="4" class="text-center text-muted">
+                        <td colspan="7" class="text-center text-muted">
                             Chưa có nhà vận chuyển nào.
                         </td>
                     </tr>
@@ -94,5 +132,6 @@ require_once '/var/www/src/includes/admin/navbar.php';
 <?php
 
 require_once '/var/www/src/includes/admin/footer.php';
+$stmt->close();
 $conn->close();
 ?>

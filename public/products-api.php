@@ -40,6 +40,36 @@ require_once '/var/www/src/includes/frontend/navbar.php';
             </select>
         </div>
 
+        <div class="col-md-4">
+            <label for="brand" class="form-label">Thương hiệu</label>
+            <input
+                type="text"
+                id="brand"
+                class="form-control"
+                placeholder="Nhập thương hiệu"
+            >
+        </div>
+
+        <div class="col-md-4">
+            <label for="gender" class="form-label">Đối tượng</label>
+            <select id="gender" class="form-select">
+                <option value="">Tất cả</option>
+                <option value="Nam">Nam</option>
+                <option value="Nữ">Nữ</option>
+                <option value="Unisex">Unisex</option>
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label for="min-price" class="form-label">Giá từ</label>
+            <input type="number" min="0" id="min-price" class="form-control">
+        </div>
+
+        <div class="col-md-3">
+            <label for="max-price" class="form-label">Đến giá</label>
+            <input type="number" min="0" id="max-price" class="form-control">
+        </div>
+
         <div class="col-md-2 d-flex align-items-end">
             <button type="submit" class="btn btn-primary w-100">
                 Tìm kiếm
@@ -63,6 +93,10 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 const filterForm = document.getElementById('filter-form');
 const keywordElement = document.getElementById('keyword');
 const categoryElement = document.getElementById('category');
+const brandElement = document.getElementById('brand');
+const genderElement = document.getElementById('gender');
+const minPriceElement = document.getElementById('min-price');
+const maxPriceElement = document.getElementById('max-price');
 const loadingElement = document.getElementById('loading');
 const errorElement = document.getElementById('error-message');
 const productListElement = document.getElementById('product-list');
@@ -81,6 +115,12 @@ function createProductCard(product) {
     const productName = escapeHtml(product.name);
     const productCode = escapeHtml(product.code);
     const categoryName = escapeHtml(product.category);
+    const brandName = escapeHtml(product.brand);
+    const perfumeDetails = [
+        product.volume ? `${escapeHtml(product.volume)} ml` : '',
+        product.concentration ? escapeHtml(product.concentration) : '',
+        product.gender ? escapeHtml(product.gender) : ''
+    ].filter(Boolean).join(' · ');
 
     const imageUrl = product.image
         ? '/uploads/products/' + encodeURIComponent(product.image)
@@ -122,8 +162,15 @@ function createProductCard(product) {
                         Mã: ${productCode}
                     </div>
 
+                    ${brandName ? `<div class="text-muted small">${brandName}</div>` : ''}
+                    ${perfumeDetails ? `<div class="text-muted small mb-2">${perfumeDetails}</div>` : ''}
+
                     <div class="fw-bold mb-2">
-                        ${formatPrice(product.price)}
+                        ${formatPrice(product.sellingPrice)}
+                        ${product.discount > 0
+                            ? `<span class="text-muted small text-decoration-line-through">${formatPrice(product.price)}</span>
+                               <span class="badge bg-danger">-${escapeHtml(product.discount)}%</span>`
+                            : ''}
                     </div>
 
                     <div class="mb-3">
@@ -176,6 +223,10 @@ async function loadProducts() {
 
     const keyword = keywordElement.value.trim();
     const category = categoryElement.value;
+    const brand = brandElement.value.trim();
+    const gender = genderElement.value;
+    const minPrice = minPriceElement.value;
+    const maxPrice = maxPriceElement.value;
 
     const params = new URLSearchParams();
 
@@ -185,6 +236,22 @@ async function loadProducts() {
 
     if (category !== '') {
         params.set('category', category);
+    }
+
+    if (brand !== '') {
+        params.set('brand', brand);
+    }
+
+    if (gender !== '') {
+        params.set('gender', gender);
+    }
+
+    if (minPrice !== '') {
+        params.set('min_price', minPrice);
+    }
+
+    if (maxPrice !== '') {
+        params.set('max_price', maxPrice);
     }
 
     let apiUrl = '/api/products.php';

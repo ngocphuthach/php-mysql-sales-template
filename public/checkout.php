@@ -68,6 +68,8 @@ function getCartItems($conn, $cart)
             p.ProductCode,
             p.ProductName,
             p.Price,
+            p.Discount,
+            p.Price * (1 - p.Discount / 100) AS SellingPrice,
             p.StockQuantity,
             (
                 SELECT pi.ImageFile
@@ -103,7 +105,7 @@ function getCartItems($conn, $cart)
         }
 
         $product['Quantity'] = $quantity;
-        $product['Subtotal'] = (float) $product['Price'] * $quantity;
+        $product['Subtotal'] = (float) $product['SellingPrice'] * $quantity;
 
         $total += $product['Subtotal'];
         $items[] = $product;
@@ -126,6 +128,18 @@ if (empty($cartItems)) {
     exit;
 }
 
+$shipperResult = $conn->query("
+    SELECT ShipperID, ShipperName, DefaultFee
+    FROM shippers
+    WHERE IsActive = 1
+    ORDER BY ShipperName
+");
+$shippers = $shipperResult->fetch_all(MYSQLI_ASSOC);
+$shipperResult->free();
+$selectedShipperID = isset($_POST['shipper_id'])
+    ? (int) $_POST['shipper_id']
+    : (int) ($shippers[0]['ShipperID'] ?? 0);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     if ($isLoggedIn) {
         $phone = trim($_POST['phone'] ?? '');
@@ -134,6 +148,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         $customerName = trim($_POST['customer_name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $address = trim($_POST['address'] ?? '');
+    }
+
+    $paymentMethod = trim(
+        $_POST['payment_method'] ?? 'Thanh toán khi nhận hàng'
+    );
+
+    if (!in_array($paymentMethod, ['Thanh toán khi nhận hàng', 'Chuyển khoản'], true)) {
+        $errorMessage = 'Phương thức thanh toán không hợp lệ.';
     }
 
     if ($isLoggedIn) {
@@ -158,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                     ProductID,
                     ProductName,
                     Price,
+                    Discount,
                     StockQuantity
                 FROM products
                 WHERE ProductID = ?
@@ -193,17 +216,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 }
 
                 $unitPrice = (float) $product['Price'];
-                $subtotal = $unitPrice * $quantity;
+                $discount = (float) $product['Discount'];
+                $subtotal = $unitPrice * (1 - $discount / 100) * $quantity;
                 $orderTotal += $subtotal;
 
                 $orderItems[] = [
                     'ProductID' => $productID,
                     'Quantity' => $quantity,
                     'UnitPrice' => $unitPrice,
+                    'Discount' => $discount,
                 ];
             }
 
             $stmtProduct->close();
+
+            $freight = 0.0;
+            $orderShipperID = null;
+            if ($shippers !== []) {
+                if ($selectedShipperID <= 0) {
+                    throw new Exception('Vui lòng chọn nhà vận chuyển.');
+                }
+
+                $stmtShipper = $conn->prepare("
+                    SELECT ShipperID, DefaultFee
+                    FROM shippers
+                    WHERE ShipperID = ? AND IsActive = 1
+                    FOR UPDATE
+                ");
+                $stmtShipper->bind_param('i', $selectedShipperID);
+                $stmtShipper->execute();
+                $shipper = $stmtShipper->get_result()->fetch_assoc();
+                $stmtShipper->close();
+
+                if (!$shipper) {
+                    throw new Exception('Nhà vận chuyển đã ngừng hoạt động. Vui lòng chọn lại.');
+                }
+
+                $orderShipperID = (int) $shipper['ShipperID'];
+                $freight = (float) $shipper['DefaultFee'];
+            } elseif ($selectedShipperID > 0) {
+                throw new Exception('Không tìm thấy nhà vận chuyển đang hoạt động.');
+            }
 
             if ($isLoggedIn) {
                 $sqlAccount = "
@@ -258,16 +311,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 $stmtCustomer->close();
             }
 
+            $orderTotal += $freight;
             $status = 'Pending';
 
             $sqlOrder = "
                 INSERT INTO orders
-                    (TotalAmount, Status, CustomerID)
-                VALUES (?, ?, ?)
+                    (
+                        TotalAmount,
+                        Status,
+                        CustomerID,
+                        ShipperID,
+                        Freight,
+                        ReceiverName,
+                        ShipAddress,
+                        ShipPhone,
+                        PaymentMethod
+                    )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ";
 
             $stmtOrder = $conn->prepare($sqlOrder);
-            $stmtOrder->bind_param('dsi', $orderTotal, $status, $customerID);
+            $stmtOrder->bind_param(
+                'dsiidssss',
+                $orderTotal,
+                $status,
+                $customerID,
+                $orderShipperID,
+                $freight,
+                $customerName,
+                $address,
+                $phone,
+                $paymentMethod
+            );
             $stmtOrder->execute();
 
             $orderID = $conn->insert_id;
@@ -275,8 +350,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             $sqlDetail = "
                 INSERT INTO orderdetail
-                    (Quantity, UnitPrice, OrderID, ProductID)
-                VALUES (?, ?, ?, ?)
+                    (Quantity, UnitPrice, Discount, OrderID, ProductID)
+                VALUES (?, ?, ?, ?, ?)
             ";
 
             $stmtDetail = $conn->prepare($sqlDetail);
@@ -292,9 +367,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             foreach ($orderItems as $item) {
                 $quantity = $item['Quantity'];
                 $unitPrice = $item['UnitPrice'];
+                $discount = $item['Discount'];
                 $productID = $item['ProductID'];
 
-                $stmtDetail->bind_param('idii', $quantity, $unitPrice, $orderID, $productID);
+                $stmtDetail->bind_param(
+                    'iddii',
+                    $quantity,
+                    $unitPrice,
+                    $discount,
+                    $orderID,
+                    $productID
+                );
                 $stmtDetail->execute();
 
                 $stmtStock->bind_param('ii', $quantity, $productID);
@@ -307,6 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             $conn->commit();
 
             $_SESSION['cart'] = [];
+            $_SESSION['last_order_id'] = $orderID;
 
             header('Location: /order-success.php?id=' . $orderID);
             exit;
@@ -400,6 +484,53 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                             ><?= htmlspecialchars($address) ?></textarea>
                         </div>
 
+                        <div class="mb-3">
+                            <label for="shipper_id" class="form-label">
+                                Nhà vận chuyển
+                            </label>
+                            <?php if ($shippers !== []): ?>
+                                <select
+                                    class="form-select"
+                                    id="shipper_id"
+                                    name="shipper_id"
+                                    required
+                                >
+                                    <?php foreach ($shippers as $shipper): ?>
+                                        <option
+                                            value="<?= (int) $shipper['ShipperID'] ?>"
+                                            data-fee="<?= htmlspecialchars((string) $shipper['DefaultFee']) ?>"
+                                            <?= (int) $shipper['ShipperID'] === $selectedShipperID ? 'selected' : '' ?>
+                                        >
+                                            <?= htmlspecialchars($shipper['ShipperName']) ?>
+                                            (<?= number_format((float) $shipper['DefaultFee'], 0, ',', '.') ?> đ)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php else: ?>
+                                <input type="hidden" name="shipper_id" value="0">
+                                <p class="form-text mb-0">Chưa có nhà vận chuyển đang hoạt động.</p>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="payment_method" class="form-label">
+                                Phương thức thanh toán
+                            </label>
+                            <select
+                                class="form-select"
+                                id="payment_method"
+                                name="payment_method"
+                                required
+                            >
+                                <option value="Thanh toán khi nhận hàng">
+                                    Thanh toán khi nhận hàng
+                                </option>
+                                <option value="Chuyển khoản">
+                                    Chuyển khoản
+                                </option>
+                            </select>
+                        </div>
+
                         <button type="submit" name="place_order" class="btn btn-primary">
                             Xác nhận đặt hàng
                         </button>
@@ -421,7 +552,7 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                                 </div>
                                 <small class="text-muted">
                                     <?= (int) $item['Quantity'] ?> ×
-                                    <?= number_format((float) $item['Price'], 0, ',', '.') ?> đ
+                                    <?= number_format((float) $item['SellingPrice'], 0, ',', '.') ?> đ
                                 </small>
                             </div>
                             <div class="text-end">
@@ -431,8 +562,29 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                     <?php endforeach; ?>
 
                     <div class="d-flex justify-content-between align-items-center mt-3 fw-bold">
-                        <span>Tổng tiền</span>
+                        <span>Tạm tính sản phẩm</span>
                         <span><?= number_format((float) $total, 0, ',', '.') ?> đ</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <span>Phí vận chuyển</span>
+                        <span id="shippingFee">
+                            <?php
+                            $initialFreight = 0.0;
+                            foreach ($shippers as $shipper) {
+                                if ((int) $shipper['ShipperID'] === $selectedShipperID) {
+                                    $initialFreight = (float) $shipper['DefaultFee'];
+                                    break;
+                                }
+                            }
+                            ?>
+                            <?= number_format($initialFreight, 0, ',', '.') ?> đ
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2 fw-bold">
+                        <span>Tổng thanh toán</span>
+                        <span id="orderTotal">
+                            <?= number_format((float) $total + $initialFreight, 0, ',', '.') ?> đ
+                        </span>
                     </div>
                 </div>
             </div>
@@ -441,6 +593,22 @@ require_once '/var/www/src/includes/frontend/navbar.php';
     </div>
 
 </div>
+
+<script>
+    const shipperSelect = document.getElementById('shipper_id');
+    const shippingFee = document.getElementById('shippingFee');
+    const orderTotal = document.getElementById('orderTotal');
+    const productSubtotal = <?= json_encode((float) $total) ?>;
+
+    if (shipperSelect && shippingFee && orderTotal) {
+        shipperSelect.addEventListener('change', () => {
+            const fee = Number(shipperSelect.selectedOptions[0].dataset.fee || 0);
+            shippingFee.textContent = new Intl.NumberFormat('vi-VN').format(fee) + ' đ';
+            orderTotal.textContent = new Intl.NumberFormat('vi-VN')
+                .format(productSubtotal + fee) + ' đ';
+        });
+    }
+</script>
 
 <?php
 

@@ -1,5 +1,7 @@
 <?php
 $pageTitle = 'Kiểm tra Nhiều Ảnh';
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['admin']);
 require_once '/var/www/src/includes/admin/header.php';
 require_once '/var/www/src/includes/admin/navbar.php';
 

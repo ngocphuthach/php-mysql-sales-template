@@ -20,7 +20,14 @@ $sql = "
         p.Description,
         p.Unit,
         p.Price,
+        p.Discount,
+        p.Price * (1 - p.Discount / 100) AS SellingPrice,
         p.StockQuantity,
+        p.Brand,
+        p.Volume,
+        p.Concentration,
+        p.Gender,
+        p.Origin,
         c.CategoryName,
         s.SupplierName
 
@@ -88,6 +95,7 @@ $sqlImages = "
     SELECT
         ProductImageID AS ImageID,
         ImageFile,
+        AltText,
         IsPrimary
 
     FROM
@@ -142,22 +150,26 @@ require_once '/var/www/src/includes/frontend/navbar.php';
             <?php if (!empty($images)): ?>
 
                 <div
-                    class="bg-light d-flex
-                           align-items-center
-                           justify-content-center
-                           p-3 mb-3"
-                    style="height: 420px;"
+                    class="bg-light d-flex align-items-center
+                           justify-content-center rounded p-3 mb-3"
+                    style="height: min(60vw, 460px); min-height: 300px;"
                 >
 
                     <img
+                        id="productMainImage"
                         src="/uploads/products/<?=
                             htmlspecialchars(
-                                $images[0]['ImageFile']
+                                $images[0]['ImageFile'],
+                                ENT_QUOTES,
+                                'UTF-8'
                             )
                         ?>"
                         alt="<?=
                             htmlspecialchars(
-                                $product['ProductName']
+                                $images[0]['AltText']
+                                    ?: $product['ProductName'],
+                                ENT_QUOTES,
+                                'UTF-8'
                             )
                         ?>"
                         style="
@@ -173,29 +185,46 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 
                     <div class="row g-2">
 
-                        <?php foreach ($images as $image): ?>
+                        <?php foreach ($images as $index => $image): ?>
 
                             <div class="col-4">
 
-                                <div
-                                    class="border rounded
-                                           bg-light
-                                           d-flex
-                                           align-items-center
-                                           justify-content-center
-                                           p-2"
+                                <button
+                                    type="button"
+                                    class="btn p-2 w-100 border rounded bg-light<?=
+                                        $index === 0 ? ' border-primary' : ''
+                                    ?>"
+                                    data-product-image
+                                    data-image-src="/uploads/products/<?= htmlspecialchars(
+                                        $image['ImageFile'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+                                    data-image-alt="<?= htmlspecialchars(
+                                        $image['AltText']
+                                            ?: $product['ProductName'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+                                    aria-label="Xem ảnh sản phẩm <?= $index + 1 ?>"
+                                    aria-pressed="<?= $index === 0 ? 'true' : 'false' ?>"
                                     style="height: 120px;"
                                 >
 
                                     <img
                                         src="/uploads/products/<?=
                                             htmlspecialchars(
-                                                $image['ImageFile']
+                                                $image['ImageFile'],
+                                                ENT_QUOTES,
+                                                'UTF-8'
                                             )
                                         ?>"
                                         alt="<?=
                                             htmlspecialchars(
-                                                $product['ProductName']
+                                                $image['AltText']
+                                                    ?: $product['ProductName'],
+                                                ENT_QUOTES,
+                                                'UTF-8'
                                             )
                                         ?>"
                                         style="
@@ -205,7 +234,7 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                                         "
                                     >
 
-                                </div>
+                                </button>
 
                             </div>
 
@@ -236,7 +265,7 @@ require_once '/var/www/src/includes/frontend/navbar.php';
             <p class="text-muted mb-2">
                 <?=
                     htmlspecialchars(
-                        $product['CategoryName']
+                        $product['Brand'] ?: $product['CategoryName']
                     )
                 ?>
             </p>
@@ -261,12 +290,20 @@ require_once '/var/www/src/includes/frontend/navbar.php';
             <p class="fs-3 fw-bold">
                 <?=
                     number_format(
-                        (float) $product['Price'],
+                        (float) $product['SellingPrice'],
                         0,
                         ',',
                         '.'
                     )
                 ?> đ
+                <?php if ((float) $product['Discount'] > 0): ?>
+                    <span class="fs-6 text-muted text-decoration-line-through">
+                        <?= number_format((float) $product['Price'], 0, ',', '.') ?> đ
+                    </span>
+                    <span class="badge bg-danger align-middle">
+                        Giảm <?= rtrim(rtrim(number_format((float) $product['Discount'], 2, '.', ''), '0'), '.') ?>%
+                    </span>
+                <?php endif; ?>
             </p>
 
             <hr>
@@ -284,6 +321,39 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                         )
                     ?>
                 </dd>
+
+                <dt class="col-sm-4">Thương hiệu</dt>
+                <dd class="col-sm-8">
+                    <?= htmlspecialchars($product['Brand'] ?: $product['CategoryName']) ?>
+                </dd>
+
+                <?php if (!empty($product['Concentration'])): ?>
+                    <dt class="col-sm-4">Nồng độ</dt>
+                    <dd class="col-sm-8">
+                        <?= htmlspecialchars($product['Concentration']) ?>
+                    </dd>
+                <?php endif; ?>
+
+                <?php if ($product['Volume'] !== null): ?>
+                    <dt class="col-sm-4">Dung tích</dt>
+                    <dd class="col-sm-8">
+                        <?= htmlspecialchars((string) $product['Volume']) ?> ml
+                    </dd>
+                <?php endif; ?>
+
+                <?php if (!empty($product['Gender'])): ?>
+                    <dt class="col-sm-4">Đối tượng</dt>
+                    <dd class="col-sm-8">
+                        <?= htmlspecialchars($product['Gender']) ?>
+                    </dd>
+                <?php endif; ?>
+
+                <?php if (!empty($product['Origin'])): ?>
+                    <dt class="col-sm-4">Xuất xứ</dt>
+                    <dd class="col-sm-8">
+                        <?= htmlspecialchars($product['Origin']) ?>
+                    </dd>
+                <?php endif; ?>
 
                 <dt class="col-sm-4">
                     Nhà cung cấp
@@ -385,6 +455,29 @@ require_once '/var/www/src/includes/frontend/navbar.php';
     </div>
 
 </main>
+
+<?php if (count($images) > 1): ?>
+    <script>
+        document.querySelectorAll('[data-product-image]').forEach((thumbnail) => {
+            thumbnail.addEventListener('click', () => {
+                const mainImage = document.getElementById('productMainImage');
+
+                if (!mainImage) {
+                    return;
+                }
+
+                mainImage.src = thumbnail.dataset.imageSrc;
+                mainImage.alt = thumbnail.dataset.imageAlt;
+
+                document.querySelectorAll('[data-product-image]').forEach((item) => {
+                    const isSelected = item === thumbnail;
+                    item.setAttribute('aria-pressed', String(isSelected));
+                    item.classList.toggle('border-primary', isSelected);
+                });
+            });
+        });
+    </script>
+<?php endif; ?>
 
 <?php
 require_once '/var/www/src/includes/frontend/footer.php';

@@ -92,6 +92,8 @@ if (!empty($cart)) {
                 p.ProductCode,
                 p.ProductName,
                 p.Price,
+                p.Discount,
+                p.Price * (1 - p.Discount / 100) AS SellingPrice,
                 p.StockQuantity,
 
                 (
@@ -126,7 +128,7 @@ if (!empty($cart)) {
 
         if ($product) {
             $quantity = (int) $quantity;
-            $subtotal = (float) $product['Price'] * $quantity;
+            $subtotal = (float) $product['SellingPrice'] * $quantity;
 
             $product['Quantity'] = $quantity;
             $product['Subtotal'] = $subtotal;
@@ -215,7 +217,12 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                                 </td>
 
                                 <td class="text-end">
-                                    <?= number_format((float) $item['Price'], 0, ',', '.') ?> đ
+                                    <?= number_format((float) $item['SellingPrice'], 0, ',', '.') ?> đ
+                                    <?php if ((float) $item['Discount'] > 0): ?>
+                                        <div class="small text-muted text-decoration-line-through">
+                                            <?= number_format((float) $item['Price'], 0, ',', '.') ?> đ
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
 
                                 <td class="text-center">

@@ -5,11 +5,17 @@ require_once '/var/www/src/config/database.php';
 
 $pageTitle = 'Đặt hàng thành công';
 
+$customerID = isset($_SESSION['customer_id'])
+    ? (int) $_SESSION['customer_id']
+    : 0;
 $orderID = isset($_GET['id'])
     ? (int) $_GET['id']
     : 0;
 
-if ($orderID <= 0) {
+if (
+    $orderID <= 0
+    || ($customerID <= 0 && (int) ($_SESSION['last_order_id'] ?? 0) !== $orderID)
+) {
     header('Location: /');
     exit;
 }
@@ -20,13 +26,19 @@ $sqlOrder = "
         o.OrderDate,
         o.TotalAmount,
         o.Status,
-        c.CustomerName,
-        c.Phone,
-        c.Address
+        o.ReceiverName,
+        o.ShipAddress,
+        o.ShipPhone,
+        o.PaymentMethod,
+        o.Freight,
+        sh.ShipperName
     FROM orders o
     INNER JOIN customers c
         ON o.CustomerID = c.CustomerID
+    LEFT JOIN shippers sh
+        ON o.ShipperID = sh.ShipperID
     WHERE o.OrderID = ?
+      AND (? = 0 OR c.CustomerID = ?)
 ";
 
 $stmtOrder = $conn->prepare($sqlOrder);
@@ -35,7 +47,7 @@ if ($stmtOrder === false) {
     exit;
 }
 
-$stmtOrder->bind_param('i', $orderID);
+$stmtOrder->bind_param('iii', $orderID, $customerID, $customerID);
 $stmtOrder->execute();
 
 $orderResult = $stmtOrder->get_result();
@@ -53,6 +65,7 @@ $sqlDetail = "
     SELECT
         od.Quantity,
         od.UnitPrice,
+        od.Discount,
         p.ProductCode,
         p.ProductName
     FROM orderdetail od
@@ -76,7 +89,9 @@ $detailResult = $stmtDetail->get_result();
 $orderItems = [];
 
 while ($row = $detailResult->fetch_assoc()) {
-    $row['Subtotal'] = (float) $row['UnitPrice'] * (int) $row['Quantity'];
+    $row['SellingPrice'] = (float) $row['UnitPrice']
+        * (1 - (float) $row['Discount'] / 100);
+    $row['Subtotal'] = $row['SellingPrice'] * (int) $row['Quantity'];
     $orderItems[] = $row;
 }
 
@@ -105,17 +120,17 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 
             <p>
                 <strong>Khách hàng:</strong>
-                <?= htmlspecialchars($order['CustomerName']) ?>
+                <?= htmlspecialchars($order['ReceiverName'] ?? '') ?>
             </p>
 
             <p>
                 <strong>Số điện thoại:</strong>
-                <?= htmlspecialchars($order['Phone']) ?>
+                <?= htmlspecialchars($order['ShipPhone'] ?? '') ?>
             </p>
 
             <p>
                 <strong>Địa chỉ:</strong>
-                <?= htmlspecialchars($order['Address']) ?>
+                <?= htmlspecialchars($order['ShipAddress'] ?? '') ?>
             </p>
 
             <p>
@@ -126,6 +141,22 @@ require_once '/var/www/src/includes/frontend/navbar.php';
             <p class="mb-0">
                 <strong>Trạng thái:</strong>
                 <?= htmlspecialchars($order['Status']) ?>
+            </p>
+            <p class="mb-0">
+                <strong>Thanh toán:</strong>
+                <?= htmlspecialchars($order['PaymentMethod'] ?? '') ?>
+            </p>
+            <p class="mb-0">
+                <strong>Nhà vận chuyển:</strong>
+                <?= htmlspecialchars($order['ShipperName'] ?? 'Chưa chỉ định') ?>
+            </p>
+            <p class="mb-0">
+                <strong>Phí vận chuyển:</strong>
+                <?= number_format((float) $order['Freight'], 0, ',', '.') ?> đ
+            </p>
+            <p class="mb-0">
+                <strong>Tổng thanh toán:</strong>
+                <?= number_format((float) $order['TotalAmount'], 0, ',', '.') ?> đ
             </p>
         </div>
     </div>
@@ -159,7 +190,12 @@ require_once '/var/www/src/includes/frontend/navbar.php';
                                 </td>
 
                                 <td class="text-end">
-                                    <?= number_format((float) $item['UnitPrice'], 0, ',', '.') ?> đ
+                                    <?= number_format((float) $item['SellingPrice'], 0, ',', '.') ?> đ
+                                    <?php if ((float) $item['Discount'] > 0): ?>
+                                        <div class="small text-muted text-decoration-line-through">
+                                            <?= number_format((float) $item['UnitPrice'], 0, ',', '.') ?> đ
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
 
                                 <td class="text-center">
@@ -175,9 +211,14 @@ require_once '/var/www/src/includes/frontend/navbar.php';
 
                     <tfoot>
                         <tr>
-                            <th colspan="4" class="text-end">Tổng cộng</th>
+                            <th colspan="4" class="text-end">Tổng tiền sản phẩm</th>
                             <th class="text-end">
-                                <?= number_format((float) $order['TotalAmount'], 0, ',', '.') ?> đ
+                                <?= number_format(
+                                    (float) $order['TotalAmount'] - (float) $order['Freight'],
+                                    0,
+                                    ',',
+                                    '.'
+                                ) ?> đ
                             </th>
                         </tr>
                     </tfoot>

@@ -2,6 +2,8 @@
 
 $pageTitle = 'Chi tiết đơn hàng';
 
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['staff', 'admin']);
 require_once '/var/www/src/config/database.php';
 
 $orderID = isset($_GET['id'])
@@ -17,8 +19,16 @@ $sqlOrder = "
     SELECT
         o.OrderID,
         o.OrderDate,
+        o.ShippedDate,
         o.TotalAmount,
         o.Status,
+        o.ReceiverName,
+        o.ShipAddress,
+        o.ShipCity,
+        o.ShipPhone,
+        o.Freight,
+        o.PaymentMethod,
+        sh.ShipperName,
         c.CustomerName,
         c.ContactName,
         c.Phone,
@@ -27,11 +37,11 @@ $sqlOrder = "
         c.PostalCode,
         c.Country
     FROM
-        orders AS o,
-        customers AS c
+        orders AS o
+        INNER JOIN customers AS c ON o.CustomerID = c.CustomerID
+        LEFT JOIN shippers AS sh ON o.ShipperID = sh.ShipperID
     WHERE
-        o.CustomerID = c.CustomerID
-        AND o.OrderID = ?
+        o.OrderID = ?
 ";
 
 $stmtOrder = $conn->prepare($sqlOrder);
@@ -78,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
         $conn->begin_transaction();
 
         $sqlLockOrder = "
-            SELECT Status
+            SELECT Status, CustomerID, TotalAmount, Freight
             FROM orders
             WHERE OrderID = ?
             FOR UPDATE
@@ -151,14 +161,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
             $stmtRestoreStock->close();
         }
 
+        if ($newStatus === 'Completed') {
+            $customerID = (int) $lockedOrder['CustomerID'];
+            $orderTotal = (float) $lockedOrder['TotalAmount']
+                - (float) $lockedOrder['Freight'];
+            $stmtAwardPoints = $conn->prepare("
+                UPDATE customers
+                SET LoyaltyPoint = LoyaltyPoint + FLOOR(? / 10000)
+                WHERE CustomerID = ?
+            ");
+            $stmtAwardPoints->bind_param('di', $orderTotal, $customerID);
+            $stmtAwardPoints->execute();
+            $stmtAwardPoints->close();
+        }
+
         $sqlUpdate = "
             UPDATE orders
-            SET Status = ?
+            SET
+                Status = ?,
+                EmployeeID = COALESCE(EmployeeID, ?),
+                ShippedDate = CASE
+                    WHEN ? = 'Shipping' THEN CURRENT_TIMESTAMP
+                    ELSE ShippedDate
+                END
             WHERE OrderID = ?
         ";
 
         $stmtUpdate = $conn->prepare($sqlUpdate);
-        $stmtUpdate->bind_param('si', $newStatus, $orderID);
+        $employeeID = (int) $_SESSION['employee_id'];
+        $stmtUpdate->bind_param('sisi', $newStatus, $employeeID, $newStatus, $orderID);
         $stmtUpdate->execute();
 
         if ($stmtUpdate->affected_rows !== 1) {
@@ -192,6 +223,7 @@ $sqlDetail = "
     SELECT
         od.Quantity,
         od.UnitPrice,
+        od.Discount,
         p.ProductCode,
         p.ProductName
     FROM
@@ -254,9 +286,51 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     </p>
 
                     <p>
+                        <strong>Nhà vận chuyển:</strong>
+                        <?= htmlspecialchars($order['ShipperName'] ?? 'Chưa chỉ định') ?>
+                    </p>
+
+                    <p>
+                        <strong>Phí vận chuyển:</strong>
+                        <?= number_format((float) $order['Freight'], 0, ',', '.') ?> đ
+                    </p>
+
+                    <p>
+                        <strong>Thanh toán:</strong>
+                        <?= htmlspecialchars($order['PaymentMethod'] ?? '') ?>
+                    </p>
+
+                    <p>
+                        <strong>Người nhận:</strong>
+                        <?= htmlspecialchars($order['ReceiverName'] ?? '') ?>
+                    </p>
+
+                    <p>
+                        <strong>Địa chỉ giao:</strong>
+                        <?= htmlspecialchars(trim(
+                            ($order['ShipAddress'] ?? '')
+                            . ', '
+                            . ($order['ShipCity'] ?? ''),
+                            ', '
+                        )) ?>
+                    </p>
+
+                    <p>
+                        <strong>Điện thoại nhận:</strong>
+                        <?= htmlspecialchars($order['ShipPhone'] ?? '') ?>
+                    </p>
+
+                    <p>
                         <strong>Ngày đặt:</strong>
                         <?= htmlspecialchars($order['OrderDate']) ?>
                     </p>
+
+                    <?php if (!empty($order['ShippedDate'])): ?>
+                        <p>
+                            <strong>Ngày giao cho vận chuyển:</strong>
+                            <?= htmlspecialchars($order['ShippedDate']) ?>
+                        </p>
+                    <?php endif; ?>
 
                     <p>
                         <strong>Trạng thái:</strong>
@@ -409,7 +483,9 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     <?php while ($item = $detailResult->fetch_assoc()): ?>
 
                         <?php
-                        $subtotal = (float) $item['UnitPrice'] * (int) $item['Quantity'];
+                        $sellingPrice = (float) $item['UnitPrice']
+                            * (1 - (float) $item['Discount'] / 100);
+                        $subtotal = $sellingPrice * (int) $item['Quantity'];
                         ?>
 
                         <tr>
@@ -423,11 +499,16 @@ require_once '/var/www/src/includes/admin/navbar.php';
 
                             <td class="text-end">
                                 <?= number_format(
-                                    (float) $item['UnitPrice'],
+                                    $sellingPrice,
                                     0,
                                     ',',
                                     '.'
                                 ) ?> đ
+                                <?php if ((float) $item['Discount'] > 0): ?>
+                                    <br><small class="text-muted">
+                                        Giảm <?= rtrim(rtrim(number_format((float) $item['Discount'], 2, '.', ''), '0'), '.') ?>%
+                                    </small>
+                                <?php endif; ?>
                             </td>
 
                             <td class="text-end">

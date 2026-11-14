@@ -1,0 +1,61 @@
+ALTER TABLE categories
+    ADD COLUMN ImageUrl VARCHAR(255) NULL AFTER Description,
+    ADD COLUMN IsActive BOOLEAN NOT NULL DEFAULT TRUE AFTER ImageUrl;
+
+ALTER TABLE suppliers
+    ADD COLUMN Email VARCHAR(100) NULL AFTER Phone,
+    ADD COLUMN IsActive BOOLEAN NOT NULL DEFAULT TRUE AFTER Email;
+
+ALTER TABLE shippers
+    ADD COLUMN Email VARCHAR(100) NULL AFTER Phone,
+    ADD COLUMN Website VARCHAR(255) NULL AFTER Email,
+    ADD COLUMN DefaultFee DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER Website,
+    ADD COLUMN IsActive BOOLEAN NOT NULL DEFAULT TRUE AFTER DefaultFee;
+
+ALTER TABLE customers
+    ADD COLUMN Email VARCHAR(255) NULL AFTER Phone,
+    ADD COLUMN PasswordHash VARCHAR(255) NULL AFTER Email,
+    ADD COLUMN Gender VARCHAR(20) NULL AFTER Country,
+    ADD COLUMN BirthDate DATE NULL AFTER Gender,
+    ADD COLUMN LoyaltyPoint INT NOT NULL DEFAULT 0 AFTER BirthDate,
+    ADD COLUMN CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER LoyaltyPoint,
+    ADD UNIQUE KEY uq_customers_email (Email);
+
+ALTER TABLE employees
+    ADD COLUMN Email VARCHAR(255) NULL AFTER Notes,
+    ADD COLUMN PasswordHash VARCHAR(255) NULL AFTER Email,
+    ADD COLUMN Phone VARCHAR(20) NULL AFTER PasswordHash,
+    ADD COLUMN Role VARCHAR(30) NOT NULL DEFAULT 'staff' AFTER Phone,
+    ADD COLUMN HireDate DATE NULL AFTER Role,
+    ADD COLUMN Address VARCHAR(255) NULL AFTER HireDate,
+    ADD COLUMN IsActive BOOLEAN NOT NULL DEFAULT TRUE AFTER Address,
+    ADD UNIQUE KEY uq_employees_email (Email);
+
+ALTER TABLE products
+    ADD COLUMN Brand VARCHAR(100) NULL AFTER Unit,
+    ADD COLUMN Volume DECIMAL(7,2) NULL AFTER Brand,
+    ADD COLUMN Concentration VARCHAR(50) NULL AFTER Volume,
+    ADD COLUMN Gender VARCHAR(20) NULL AFTER Concentration,
+    ADD COLUMN Origin VARCHAR(100) NULL AFTER Gender,
+    ADD COLUMN Discount DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER Price,
+    ADD COLUMN CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER IsActive,
+    ADD CONSTRAINT chk_products_discount CHECK (Discount >= 0 AND Discount <= 100),
+    ADD CONSTRAINT chk_products_volume CHECK (Volume IS NULL OR Volume > 0);
+
+CREATE INDEX idx_products_brand ON products(Brand);
+CREATE INDEX idx_products_gender ON products(Gender);
+CREATE INDEX idx_products_price ON products(Price);
+
+ALTER TABLE orders
+    ADD COLUMN RequiredDate DATE NULL AFTER OrderDate,
+    ADD COLUMN ShippedDate DATETIME NULL AFTER RequiredDate,
+    ADD COLUMN ReceiverName VARCHAR(100) NULL AFTER Status,
+    ADD COLUMN ShipAddress VARCHAR(255) NULL AFTER ReceiverName,
+    ADD COLUMN ShipCity VARCHAR(100) NULL AFTER ShipAddress,
+    ADD COLUMN ShipPhone VARCHAR(20) NULL AFTER ShipCity,
+    ADD COLUMN Freight DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER ShipPhone,
+    ADD COLUMN PaymentMethod VARCHAR(50) NULL AFTER Freight;
+
+ALTER TABLE orderdetail
+    ADD COLUMN Discount DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER UnitPrice,
+    ADD CONSTRAINT chk_orderdetail_discount CHECK (Discount >= 0 AND Discount <= 100);

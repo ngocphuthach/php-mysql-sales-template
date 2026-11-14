@@ -1,8 +1,27 @@
 <?php
 $pageTitle = 'Sửa sản phẩm';
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['admin']);
 require_once '/var/www/src/config/database.php';
 
 $error = '';
+
+$sqlCategories = "
+    SELECT CategoryID, CategoryName
+    FROM categories
+    WHERE CategoryName IN ('Nam', 'Nữ', 'Unisex')
+    ORDER BY CategoryName
+";
+$categoryResult = $conn->query($sqlCategories);
+$categories = $categoryResult->fetch_all(MYSQLI_ASSOC);
+
+$brandResult = $conn->query("
+    SELECT DISTINCT Brand
+    FROM products
+    WHERE Brand IS NOT NULL AND TRIM(Brand) <> ''
+    ORDER BY Brand
+");
+$brands = $brandResult->fetch_all(MYSQLI_ASSOC);
 
 // 1. Kiểm tra và lấy mã ProductID từ thanh địa chỉ (GET)
 $productID = isset($_GET['id']) ? (int) $_GET['id'] : 0;
@@ -19,12 +38,32 @@ if (
 ) {
     $productCode = trim($_POST['product_code'] ?? '');
     $productName = trim($_POST['product_name'] ?? '');
+    $description = trim($_POST['description'] ?? '');
     $unit = trim($_POST['unit'] ?? '');
+    $brand = trim($_POST['brand'] ?? '');
+    $volumeInput = trim($_POST['volume'] ?? '');
+    $volume = $volumeInput === '' ? null : (float) $volumeInput;
+    $concentration = trim($_POST['concentration'] ?? '');
+    $gender = '';
+    $origin = trim($_POST['origin'] ?? '');
     $price = (float) ($_POST['price'] ?? 0);
+    $discount = (float) ($_POST['discount'] ?? 0);
     $stockQuantity = (int) ($_POST['stock_quantity'] ?? 0);
     $categoryID = (int) ($_POST['category_id'] ?? 0);
     $supplierID = (int) ($_POST['supplier_id'] ?? 0);
     $isActive = isset($_POST['is_active']) ? 1 : 0;
+    $categoryName = null;
+
+    foreach ($categories as $category) {
+        if ((int) $category['CategoryID'] === $categoryID) {
+            $categoryName = $category['CategoryName'];
+            break;
+        }
+    }
+
+    if ($categoryName !== null) {
+        $gender = $categoryName;
+    }
 
     if ($productCode === '') {
         $error = 'Mã sản phẩm không được để trống.';
@@ -34,9 +73,16 @@ if (
         $error = 'Đơn vị tính không được để trống.';
     } elseif ($price < 0) {
         $error = 'Giá sản phẩm không hợp lệ.';
+    } elseif ($discount < 0 || $discount > 100) {
+        $error = 'Mức giảm giá phải từ 0 đến 100%.';
+    } elseif (
+        $volumeInput !== ''
+        && !in_array($volumeInput, ['50', '75', '100'], true)
+    ) {
+        $error = 'Vui lòng chọn dung tích 50, 75 hoặc 100 ml.';
     } elseif ($stockQuantity < 0) {
         $error = 'Số lượng tồn kho không hợp lệ.';
-    } elseif ($categoryID <= 0) {
+    } elseif ($categoryName === null) {
         $error = 'Vui lòng chọn danh mục.';
     } elseif ($supplierID <= 0) {
         $error = 'Vui lòng chọn nhà cung cấp.';
@@ -46,8 +92,15 @@ if (
             SET
                 ProductCode = ?,
                 ProductName = ?,
+                Description = ?,
                 Unit = ?,
+                Brand = ?,
+                Volume = ?,
+                Concentration = ?,
+                Gender = ?,
+                Origin = ?,
                 Price = ?,
+                Discount = ?,
                 StockQuantity = ?,
                 IsActive = ?,
                 SupplierID = ?,
@@ -61,11 +114,18 @@ if (
             $error = 'Không thể chuẩn bị truy vấn cập nhật sản phẩm.';
         } else {
             $stmtUpdate->bind_param(
-                'sssdiiiii',
+                'sssssdsssddiiiii',
                 $productCode,
                 $productName,
+                $description,
                 $unit,
+                $brand,
+                $volume,
+                $concentration,
+                $gender,
+                $origin,
                 $price,
+                $discount,
                 $stockQuantity,
                 $isActive,
                 $supplierID,
@@ -463,14 +523,31 @@ if (isset($_POST['delete_image'])) {
 
 
 // 2. Lấy dữ liệu động cho các ô chọn Category và Supplier
-$sqlCategories = "SELECT CategoryID, CategoryName FROM categories ORDER BY CategoryName";
-$categories = $conn->query($sqlCategories);
-
 $sqlSuppliers = "SELECT SupplierID, SupplierName FROM suppliers ORDER BY SupplierName";
 $suppliers = $conn->query($sqlSuppliers);
 
 // 3. Đọc dữ liệu hiện tại của sản phẩm cần sửa
-$sqlProduct = "SELECT ProductID, ProductCode, ProductName, Unit, Price, StockQuantity, IsActive, SupplierID, CategoryID FROM products WHERE ProductID = ?";
+$sqlProduct = "
+    SELECT
+        ProductID,
+        ProductCode,
+        ProductName,
+        Description,
+        Unit,
+        Brand,
+        Volume,
+        Concentration,
+        Gender,
+        Origin,
+        Price,
+        Discount,
+        StockQuantity,
+        IsActive,
+        SupplierID,
+        CategoryID
+    FROM products
+    WHERE ProductID = ?
+";
 $stmtProduct = $conn->prepare($sqlProduct);
 $stmtProduct->bind_param('i', $productID);
 $stmtProduct->execute();
@@ -532,7 +609,6 @@ require_once '/var/www/src/includes/admin/navbar.php';
     <?php endif; ?>
 
     <form method="post" enctype="multipart/form-data">
-        <!-- KHỐI THÔNG TIN SẢN PHẨM -->
         <div class="row">
             <div class="col-md-4 mb-3">
                 <label for="productCode" class="form-label">Mã sản phẩm</label>
@@ -550,11 +626,74 @@ require_once '/var/www/src/includes/admin/navbar.php';
 
         <div class="row">
             <div class="col-md-6 mb-3">
+                <label for="brand" class="form-label">Thương hiệu</label>
+                <input
+                    type="text"
+                    class="form-control"
+                    id="brand"
+                    name="brand"
+                    list="brandSuggestions"
+                    maxlength="100"
+                    placeholder="Nhập hoặc chọn thương hiệu"
+                    value="<?= htmlspecialchars($_POST['brand'] ?? $product['Brand'] ?? '') ?>"
+                >
+                <datalist id="brandSuggestions">
+                    <?php foreach ($brands as $brandOption): ?>
+                        <option value="<?= htmlspecialchars($brandOption['Brand']) ?>">
+                    <?php endforeach; ?>
+                </datalist>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="volume" class="form-label">Dung tích (ml)</label>
+                <select class="form-select" id="volume" name="volume">
+                    <option value="">-- Chọn dung tích --</option>
+                    <?php foreach (['50', '75', '100'] as $volumeOption): ?>
+                        <option
+                            value="<?= $volumeOption ?>"
+                            <?= (float) ($_POST['volume'] ?? $product['Volume'] ?? 0) === (float) $volumeOption ? 'selected' : '' ?>
+                        >
+                            <?= $volumeOption ?> ml
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="concentration" class="form-label">Nồng độ</label>
+                <select class="form-select" id="concentration" name="concentration">
+                    <option value="">-- Chọn nồng độ --</option>
+                    <?php foreach (['EDC', 'EDT', 'EDP', 'Parfum', 'Extrait'] as $option): ?>
+                        <option
+                            value="<?= htmlspecialchars($option) ?>"
+                            <?= ($_POST['concentration'] ?? $product['Concentration'] ?? '') === $option ? 'selected' : '' ?>
+                        >
+                            <?= htmlspecialchars($option) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12 mb-3">
+                <label for="origin" class="form-label">Xuất xứ</label>
+                <input
+                    type="text"
+                    class="form-control"
+                    id="origin"
+                    name="origin"
+                    value="<?= htmlspecialchars($_POST['origin'] ?? $product['Origin'] ?? '') ?>"
+                >
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
                 <label for="categoryID" class="form-label">Danh mục</label>
                 <select class="form-select" id="categoryID" name="category_id" required>
-                    <?php while ($cat = $categories->fetch_assoc()): ?>
+                    <option value="">-- Chọn danh mục --</option>
+                    <?php foreach ($categories as $cat): ?>
                         <option value="<?= $cat['CategoryID'] ?>" <?= (int)($_POST['category_id'] ?? $product['CategoryID']) === (int)$cat['CategoryID'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['CategoryName']) ?></option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="col-md-6 mb-3">
@@ -568,14 +707,37 @@ require_once '/var/www/src/includes/admin/navbar.php';
         </div>
 
         <div class="row">
-            <div class="col-md-6 mb-3">
-                <label for="price" class="form-label">Giá bán (VNĐ)</label>
-                <input type="number" step="0.01" class="form-control" id="price" name="price" value="<?= htmlspecialchars($_POST['price'] ?? $product['Price']) ?>" required>
+            <div class="col-md-4 mb-3">
+                <label for="price" class="form-label">Giá niêm yết (VNĐ)</label>
+                <input type="number" min="0" step="0.01" class="form-control" id="price" name="price" value="<?= htmlspecialchars($_POST['price'] ?? $product['Price']) ?>" required>
             </div>
-            <div class="col-md-6 mb-3">
+            <div class="col-md-4 mb-3">
+                <label for="discount" class="form-label">Giảm giá (%)</label>
+                <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    class="form-control"
+                    id="discount"
+                    name="discount"
+                    value="<?= htmlspecialchars($_POST['discount'] ?? $product['Discount'] ?? '0') ?>"
+                >
+            </div>
+            <div class="col-md-4 mb-3">
                 <label for="stockQuantity" class="form-label">Số lượng tồn kho</label>
-                <input type="number" class="form-control" id="stockQuantity" name="stock_quantity" value="<?= htmlspecialchars($_POST['stock_quantity'] ?? $product['StockQuantity']) ?>" required>
+                <input type="number" min="0" class="form-control" id="stockQuantity" name="stock_quantity" value="<?= htmlspecialchars($_POST['stock_quantity'] ?? $product['StockQuantity']) ?>" required>
             </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="description" class="form-label">Mô tả chi tiết</label>
+            <textarea
+                class="form-control"
+                id="description"
+                name="description"
+                rows="4"
+            ><?= htmlspecialchars($_POST['description'] ?? $product['Description'] ?? '') ?></textarea>
         </div>
 
         <div class="mb-3 form-check">

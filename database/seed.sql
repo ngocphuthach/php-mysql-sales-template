@@ -4,7 +4,10 @@ INSERT INTO categories (CategoryName, Description)
 VALUES
     ('Điện thoại', 'Các sản phẩm điện thoại di động'),
     ('Máy tính', 'Máy tính xách tay và máy tính để bàn'),
-    ('Phụ kiện', 'Phụ kiện dành cho thiết bị công nghệ');
+    ('Phụ kiện', 'Phụ kiện dành cho thiết bị công nghệ'),
+    ('Nam', 'Nước hoa dành cho nam'),
+    ('Nữ', 'Nước hoa dành cho nữ'),
+    ('Unisex', 'Nước hoa phù hợp cho mọi giới tính');
 
 INSERT INTO suppliers
     (SupplierName, ContactName, Address, City, PostalCode, Country, Phone)

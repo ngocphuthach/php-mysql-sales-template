@@ -2,6 +2,8 @@
 
 $pageTitle = 'Quản lý đơn hàng';
 
+require_once '/var/www/src/config/auth.php';
+requireEmployeeRole(['staff', 'admin']);
 require_once '/var/www/src/config/database.php';
 
 $sql = "
@@ -11,12 +13,15 @@ $sql = "
         o.TotalAmount,
         o.Status,
         c.CustomerName,
-        c.Phone
+        o.ShipPhone,
+        sh.ShipperName,
+        e.FirstName,
+        e.LastName
     FROM
-        orders AS o,
-        customers AS c
-    WHERE
-        o.CustomerID = c.CustomerID
+        orders AS o
+        INNER JOIN customers AS c ON o.CustomerID = c.CustomerID
+        LEFT JOIN shippers AS sh ON o.ShipperID = sh.ShipperID
+        LEFT JOIN employees AS e ON o.EmployeeID = e.EmployeeID
     ORDER BY
         o.OrderID DESC
 ";
@@ -43,7 +48,9 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     <th>Mã đơn</th>
                     <th>Ngày đặt</th>
                     <th>Khách hàng</th>
-                    <th>Điện thoại</th>
+                    <th>Điện thoại nhận</th>
+                    <th>Nhà vận chuyển</th>
+                    <th>Nhân viên xử lý</th>
                     <th>Tổng tiền</th>
                     <th>Trạng thái</th>
                     <th>Thao tác</th>
@@ -69,7 +76,17 @@ require_once '/var/www/src/includes/admin/navbar.php';
                     </td>
 
                     <td>
-                        <?= htmlspecialchars($order['Phone'] ?? '') ?>
+                        <?= htmlspecialchars($order['ShipPhone'] ?? '') ?>
+                    </td>
+
+                    <td>
+                        <?= htmlspecialchars($order['ShipperName'] ?? 'Chưa chỉ định') ?>
+                    </td>
+
+                    <td>
+                        <?= htmlspecialchars(trim(
+                            ($order['FirstName'] ?? '') . ' ' . ($order['LastName'] ?? '')
+                        ) ?: 'Chưa phân công') ?>
                     </td>
 
                     <td class="text-end">
